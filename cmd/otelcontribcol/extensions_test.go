@@ -20,12 +20,14 @@ import (
 	"go.opentelemetry.io/collector/extension/extensiontest"
 	"go.opentelemetry.io/collector/extension/zpagesextension"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/ackextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/asapauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/bearertokenauthextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/googleclientauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/headerssetterextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/httpforwarder"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/httpforwarderextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/jaegerremotesampling"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/oauth2clientauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver"
@@ -149,7 +151,7 @@ func TestDefaultExtensions(t *testing.T) {
 		{
 			extension: "http_forwarder",
 			getConfigFn: func() component.Config {
-				cfg := extFactories["http_forwarder"].CreateDefaultConfig().(*httpforwarder.Config)
+				cfg := extFactories["http_forwarder"].CreateDefaultConfig().(*httpforwarderextension.Config)
 				cfg.Egress.Endpoint = "http://" + endpoint
 				cfg.Ingress.Endpoint = testutil.GetAvailableLocalAddress(t)
 				return cfg
@@ -247,6 +249,19 @@ func TestDefaultExtensions(t *testing.T) {
 		{
 			extension:     "solarwindsapmsettings",
 			skipLifecycle: true, // Requires Solarwinds APM endpoint and token
+		},
+		{
+			extension: "ackextension",
+			getConfigFn: func() component.Config {
+				return extFactories["ackextension"].CreateDefaultConfig().(*ackextension.Config)
+			},
+		},
+		{
+			extension: "googleclientauthextension",
+			getConfigFn: func() component.Config {
+				return extFactories["googleclientauthextension"].CreateDefaultConfig().(*googleclientauthextension.Config)
+			},
+			skipLifecycle: true,
 		},
 	}
 

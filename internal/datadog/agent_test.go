@@ -11,8 +11,9 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 )
 
 func TestTraceAgentConfig(t *testing.T) {
@@ -20,19 +21,24 @@ func TestTraceAgentConfig(t *testing.T) {
 	require.NotZero(t, cfg.ReceiverPort)
 
 	out := make(chan *pb.StatsPayload)
-	agnt := NewAgentWithConfig(context.Background(), cfg, out)
+	_, metricClient, timingReporter := setupMetricClient()
+	agnt := NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
 	require.Zero(t, cfg.ReceiverPort)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
-	require.Equal(t, metrics.UnsetHostnamePlaceholder, cfg.Hostname)
+	require.Equal(t, "__unset__", cfg.Hostname)
 	require.Equal(t, out, agnt.Concentrator.Out)
 }
 
 func TestTraceAgent(t *testing.T) {
 	cfg := traceconfig.New()
+	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	require.NoError(t, err)
+	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	cfg.BucketInterval = 50 * time.Millisecond
 	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
-	a := NewAgentWithConfig(ctx, cfg, out)
+	_, metricClient, timingReporter := setupMetricClient()
+	a := NewAgentWithConfig(ctx, cfg, out, metricClient, timingReporter)
 	a.Start()
 	defer a.Stop()
 

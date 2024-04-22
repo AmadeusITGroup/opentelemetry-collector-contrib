@@ -33,7 +33,7 @@ func Test_NewTracesExporter(t *testing.T) {
 }
 
 func TestPushTraceData(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		response := lmsdktraces.LMTraceIngestResponse{
 			Success: true,
 			Message: "",
@@ -54,6 +54,7 @@ func TestPushTraceData(t *testing.T) {
 	exp, err := f.CreateTracesExporter(ctx, params, config)
 	assert.NoError(t, err)
 	assert.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+	defer func() { assert.NoError(t, exp.Shutdown(ctx)) }()
 
 	testTraces := ptrace.NewTraces()
 	generateTraces().CopyTo(testTraces)

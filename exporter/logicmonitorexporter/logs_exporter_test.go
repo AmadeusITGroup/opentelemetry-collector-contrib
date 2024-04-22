@@ -57,7 +57,7 @@ func Test_NewLogsExporter(t *testing.T) {
 }
 
 func TestPushLogData(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		response := lmsdklogs.LMLogIngestResponse{
 			Success: true,
 			Message: "Accepted",
@@ -110,6 +110,7 @@ func TestPushLogData(t *testing.T) {
 			exp := newLogsExporter(test.args.ctx, test.fields.config, set)
 
 			require.NoError(t, exp.start(test.args.ctx, componenttest.NewNopHost()))
+			defer func() { require.NoError(t, exp.shutdown(test.args.ctx)) }()
 			err := exp.PushLogData(test.args.ctx, test.args.lg)
 			assert.NoError(t, err)
 		})

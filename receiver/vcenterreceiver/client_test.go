@@ -13,12 +13,13 @@ import (
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/simulator"
+	"github.com/vmware/govmomi/view"
 	"github.com/vmware/govmomi/vim25"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
-func TestGetClusters(t *testing.T) {
+func TestGetComputes(t *testing.T) {
 	simulator.Test(func(ctx context.Context, c *vim25.Client) {
 		finder := find.NewFinder(c)
 		client := vcenterClient{
@@ -27,9 +28,9 @@ func TestGetClusters(t *testing.T) {
 		}
 		dc, err := finder.DefaultDatacenter(ctx)
 		require.NoError(t, err)
-		clusters, err := client.Clusters(ctx, dc)
+		computes, err := client.Computes(ctx, dc)
 		require.NoError(t, err)
-		require.NotEmpty(t, clusters, 0)
+		require.NotEmpty(t, computes, 0)
 	})
 }
 
@@ -48,10 +49,12 @@ func TestGetResourcePools(t *testing.T) {
 
 func TestGetVMs(t *testing.T) {
 	simulator.Test(func(ctx context.Context, c *vim25.Client) {
+		viewManager := view.NewManager(c)
 		finder := find.NewFinder(c)
 		client := vcenterClient{
 			vimDriver: c,
 			finder:    finder,
+			vm:        viewManager,
 		}
 		vms, err := client.VMs(ctx)
 		require.NoError(t, err)
@@ -73,7 +76,7 @@ func TestSessionReestablish(t *testing.T) {
 				Username: simulator.DefaultLogin.Username(),
 				Password: configopaque.String(pw),
 				Endpoint: fmt.Sprintf("%s://%s", c.URL().Scheme, c.URL().Host),
-				TLSClientSetting: configtls.TLSClientSetting{
+				ClientConfig: configtls.ClientConfig{
 					Insecure: true,
 				},
 			},

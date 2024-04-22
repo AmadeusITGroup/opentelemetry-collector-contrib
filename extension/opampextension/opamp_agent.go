@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -20,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	semconv "go.opentelemetry.io/collector/semconv/v1.18.0"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,16 +45,13 @@ type opampAgent struct {
 	opampClient client.OpAMPClient
 }
 
-func (o *opampAgent) Start(_ context.Context, _ component.Host) error {
-	// TODO: Add OpAMP HTTP transport support.
-	o.opampClient = client.NewWebSocket(newLoggerFromZap(o.logger))
-
+func (o *opampAgent) Start(ctx context.Context, _ component.Host) error {
 	header := http.Header{}
-	for k, v := range o.cfg.Server.WS.Headers {
+	for k, v := range o.cfg.Server.GetHeaders() {
 		header.Set(k, string(v))
 	}
 
-	tls, err := o.cfg.Server.WS.TLSSetting.LoadTLSConfig()
+	tls, err := o.cfg.Server.GetTLSSetting().LoadTLSConfig(ctx)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (o *opampAgent) Start(_ context.Context, _ component.Host) error {
 	settings := types.StartSettings{
 		Header:         header,
 		TLSConfig:      tls,
-		OpAMPServerURL: o.cfg.Server.WS.Endpoint,
+		OpAMPServerURL: o.cfg.Server.GetEndpoint(),
 		InstanceUid:    o.instanceID.String(),
 		Callbacks: types.CallbacksStruct{
 			OnConnectFunc: func(_ context.Context) {
@@ -104,7 +104,13 @@ func (o *opampAgent) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	o.logger.Debug("Stopping OpAMP client...")
-	return o.opampClient.Stop(ctx)
+	err := o.opampClient.Stop(ctx)
+	// Opamp-go considers this an error, but the collector does not.
+	// https://github.com/open-telemetry/opamp-go/issues/255
+	if err != nil && strings.EqualFold(err.Error(), "cannot stop because not started") {
+		return nil
+	}
+	return err
 }
 
 func (o *opampAgent) NotifyConfig(ctx context.Context, conf *confmap.Conf) error {
@@ -148,11 +154,11 @@ func newOpampAgent(cfg *Config, logger *zap.Logger, build component.BuildInfo, r
 	} else {
 		sid, ok := res.Attributes().Get(semconv.AttributeServiceInstanceID)
 		if ok {
-			uuid, err := uuid.Parse(sid.AsString())
+			parsedUUID, err := uuid.Parse(sid.AsString())
 			if err != nil {
 				return nil, err
 			}
-			uid = ulid.ULID(uuid)
+			uid = ulid.ULID(parsedUUID)
 		}
 	}
 
@@ -163,6 +169,7 @@ func newOpampAgent(cfg *Config, logger *zap.Logger, build component.BuildInfo, r
 		agentVersion: agentVersion,
 		instanceID:   uid,
 		capabilities: cfg.Capabilities,
+		opampClient:  cfg.Server.GetClient(logger),
 	}
 
 	return agent, nil
@@ -189,10 +196,25 @@ func (o *opampAgent) createAgentDescription() error {
 		stringKeyValue(semconv.AttributeServiceVersion, o.agentVersion),
 	}
 
-	nonIdent := []*protobufs.KeyValue{
-		stringKeyValue(semconv.AttributeOSType, runtime.GOOS),
-		stringKeyValue(semconv.AttributeHostArch, runtime.GOARCH),
-		stringKeyValue(semconv.AttributeHostName, hostname),
+	// Initially construct using a map to properly deduplicate any keys that
+	// are both automatically determined and defined in the config
+	nonIdentifyingAttributeMap := map[string]string{}
+	nonIdentifyingAttributeMap[semconv.AttributeOSType] = runtime.GOOS
+	nonIdentifyingAttributeMap[semconv.AttributeHostArch] = runtime.GOARCH
+	nonIdentifyingAttributeMap[semconv.AttributeHostName] = hostname
+
+	for k, v := range o.cfg.AgentDescription.NonIdentifyingAttributes {
+		nonIdentifyingAttributeMap[k] = v
+	}
+
+	// Sort the non identifying attributes to give them a stable order for tests
+	keys := maps.Keys(nonIdentifyingAttributeMap)
+	sort.Strings(keys)
+
+	nonIdent := make([]*protobufs.KeyValue, 0, len(nonIdentifyingAttributeMap))
+	for _, k := range keys {
+		v := nonIdentifyingAttributeMap[k]
+		nonIdent = append(nonIdent, stringKeyValue(k, v))
 	}
 
 	o.agentDescription = &protobufs.AgentDescription{

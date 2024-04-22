@@ -246,22 +246,23 @@ Examples:
 
 ### replace_all_matches
 
-`replace_all_matches(target, pattern, replacement, Optional[function])`
+`replace_all_matches(target, pattern, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_all_matches` function replaces any matching string value with the replacement string.
 
 `target` is a path expression to a `pcommon.Map` type field. `pattern` is a string following [filepath.Match syntax](https://pkg.go.dev/path/filepath#Match). `replacement` is either a path expression to a string telemetry field or a literal string. `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces any matching string with the hash value of `replacement`.
+`replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 Each string value in `target` that matches `pattern` will get replaced with `replacement`. Non-string values are ignored.
 
 Examples:
 
 - `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}")`
-- `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256)`
+- `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256, "/user/%s")`
 
 ### replace_all_patterns
 
-`replace_all_patterns(target, mode, regex, replacement, Optional[function])`
+`replace_all_patterns(target, mode, regex, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_all_patterns` function replaces any segments in a string value or key that match the regex pattern with the replacement string.
 
@@ -271,7 +272,7 @@ The `replace_all_patterns` function replaces any segments in a string value or k
 
 If one or more sections of `target` match `regex` they will get replaced with `replacement`.
 
-The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand).
+The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand). `replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 The `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces any matching regex pattern with the hash value of `replacement`.
 
@@ -280,7 +281,8 @@ Examples:
 - `replace_all_patterns(attributes, "value", "/account/\\d{4}", "/account/{accountId}")`
 - `replace_all_patterns(attributes, "key", "/account/\\d{4}", "/account/{accountId}")`
 - `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "k8s.$$1.")`
-- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "k8s.$$1.", SHA256)`
+- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "$$1.")`
+- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "$$1.", SHA256, "k8s.%s")`
 
 Note that when using OTTL within the collector's configuration file, `$` must be escaped to `$$` to bypass
 environment variable substitution logic. To input a literal `$` from the configuration file, use `$$$`.
@@ -288,11 +290,12 @@ If using OTTL outside of collector configuration, `$` should not be escaped and 
 
 ### replace_match
 
-`replace_match(target, pattern, replacement, Optional[function])`
+`replace_match(target, pattern, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_match` function allows replacing entire strings if they match a glob pattern.
 
 `target` is a path expression to a telemetry field. `pattern` is a string following [filepath.Match syntax](https://pkg.go.dev/path/filepath#Match). `replacement` is either a path expression to a string telemetry field or a literal string.
+`replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 If `target` matches `pattern` it will get replaced with `replacement`.
 
@@ -301,11 +304,11 @@ The `function` is an optional argument that can take in any Converter that accep
 Examples:
 
 - `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}")`
-- `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256)`
+- `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256, "/user/%s")`
 
 ### replace_pattern
 
-`replace_pattern(target, regex, replacement, Optional[function])`
+`replace_pattern(target, regex, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_pattern` function allows replacing all string sections that match a regex pattern with a new value.
 
@@ -313,7 +316,7 @@ The `replace_pattern` function allows replacing all string sections that match a
 
 If one or more sections of `target` match `regex` they will get replaced with `replacement`.
 
-The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand).
+The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand). `replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported
 
 The `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces a matching regex pattern with the hash value of `replacement`.
 
@@ -321,7 +324,7 @@ Examples:
 
 - `replace_pattern(resource.attributes["process.command_line"], "password\\=[^\\s]*(\\s?)", "password=***")`
 - `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "k8s.$$1.")`
-- `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "k8s.$$1.", SHA256)`
+- `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "$$1.", SHA256, "k8s.%s")`
 
 Note that when using OTTL within the collector's configuration file, `$` must be escaped to `$$` to bypass
 environment variable substitution logic. To input a literal `$` from the configuration file, use `$$$`.
@@ -374,6 +377,7 @@ Unlike functions, they do not modify any input telemetry and always return a val
 
 Available Converters:
 
+- [Base64Decode](#base64decode)
 - [Concat](#concat)
 - [ConvertCase](#convertcase)
 - [ExtractPatterns](#extractpatterns)
@@ -385,8 +389,10 @@ Available Converters:
 - [Int](#int)
 - [IsBool](#isbool)
 - [IsDouble](#isdouble)
+- [IsInt](#isint)
 - [IsMap](#ismap)
 - [IsMatch](#ismatch)
+- [IsList](#islist)
 - [IsString](#isstring)
 - [Len](#len)
 - [Log](#log)
@@ -395,21 +401,41 @@ Available Converters:
 - [Minutes](#minutes)
 - [Nanoseconds](#nanoseconds)
 - [Now](#now)
+- [ParseCSV](#parsecsv)
 - [ParseJSON](#parsejson)
+- [ParseKeyValue](#parsekeyvalue)
+- [ParseXML](#parsexml)
 - [Seconds](#seconds)
 - [SHA1](#sha1)
 - [SHA256](#sha256)
 - [SpanID](#spanid)
 - [Split](#split)
+- [String](#string)
 - [Substring](#substring)
 - [Time](#time)
 - [TraceID](#traceid)
 - [TruncateTime](#truncatetime)
+- [Unix](#unix)
 - [UnixMicro](#unixmicro)
 - [UnixMilli](#unixmilli)
 - [UnixNano](#unixnano)
 - [UnixSeconds](#unixseconds)
 - [UUID](#UUID)
+
+### Base64Decode
+
+`Base64Decode(value)`
+
+The `Base64Decode` Converter takes a base64 encoded string and returns the decoded string.
+
+`value` is a valid base64 encoded string.
+
+Examples:
+
+- `Base64Decode("aGVsbG8gd29ybGQ=")`
+
+
+- `Base64Decode(attributes["encoded field"])`
 
 ### Concat
 
@@ -624,6 +650,22 @@ Examples:
 
 - `IsDouble(attributes["maybe a double"])`
 
+### IsInt
+
+`IsInt(value)`
+
+The `IsInt` Converter returns true if the given value is a int.
+
+The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+
+If `value` is a `int64` or a `pcommon.ValueTypeInt` then returns `true`, otherwise returns `false`.
+
+Examples:
+
+- `IsInt(body)`
+
+- `IsInt(attributes["maybe a int"])`
+
 ### IsMap
 
 `IsMap(value)`
@@ -666,6 +708,22 @@ Examples:
 
 
 - `IsMatch("string", ".*ring")`
+
+### IsList
+
+`IsList(value)`
+
+The `IsList` Converter returns true if the given value is a list.
+
+The `value` is either a path expression to a telemetry field to retrieve or a literal.
+
+If `value` is a `list`, `pcommon.ValueTypeSlice`. `pcommon.Slice`, or any other list type, then returns `true`, otherwise returns `false`.
+
+Examples:
+
+- `IsList(body)`
+
+- `IsList(attributes["maybe a slice"])`
 
 ### IsString
 
@@ -792,6 +850,38 @@ Examples:
 - `UnixSeconds(Now())`
 - `set(start_time, Now())`
 
+### ParseCSV
+
+`ParseCSV(target, headers, Optional[delimiter], Optional[headerDelimiter], Optional[mode])`
+
+The `ParseCSV` Converter returns a `pcommon.Map` struct that contains the result of parsing the `target` string as CSV. The resultant map is structured such that it is a mapping of field name -> field value.
+
+`target` is a Getter that returns a string. This string should be a CSV row. if `target` is not a properly formatted CSV row, or if the number of fields in `target` does not match the number of fields in `headers`, `ParseCSV` will return an error. Leading and trailing newlines in `target` will be stripped. Newlines elswhere in `target` are not treated as row delimiters during parsing, and will be treated as though they are part of the field that are placed in.
+
+`headers` is a Getter that returns a string. This string should be a CSV header, specifying the names of the CSV fields.
+
+`delimiter` is an optional string parameter that specifies the delimiter used to split `target` into fields. By default, it is set to `,`.
+
+`headerDelimiter` is an optional string parameter that specified the delimiter used to split `headers` into fields. By default, it is set to the value of `delimiter`.
+
+`mode` is an optional string paramater that specifies the parsing mode. Valid values are `strict`, `lazyQuotes`, and `ignoreQuotes`. By default, it is set to `strict`.
+- The `strict` mode provides typical CSV parsing.
+- The `lazyQotes` mode provides a relaxed version of CSV parsing where a quote may appear in the middle of a unquoted field.
+- The `ignoreQuotes` mode completely ignores any quoting rules for CSV and just splits the row on the delimiter.
+
+Examples:
+
+- `ParseCSV("999-999-9999,Joe Smith,joe.smith@example.com", "phone,name,email")`
+
+
+- `ParseCSV(body, "phone|name|email", delimiter="|")`
+
+
+- `ParseCSV(attributes["csv_line"], attributes["csv_headers"], delimiter="|", headerDelimiter=",", mode="lazyQuotes")`
+
+
+- `ParseCSV("\"555-555-5556,Joe Smith\",joe.smith@example.com", "phone,name,email", mode="ignoreQuotes")`
+
 ### ParseJSON
 
 `ParseJSON(target)`
@@ -822,6 +912,98 @@ Examples:
 
 
 - `ParseJSON(body)`
+
+### ParseKeyValue
+
+`ParseKeyValue(target, Optional[delimiter], Optional[pair_delimiter])`
+
+The `ParseKeyValue` Converter returns a `pcommon.Map` that is a result of parsing the target string for key value pairs.
+
+`target` is a Getter that returns a string. If the returned string is empty, an error will be returned. `delimiter` is an optional string that is used to split the key and value in a pair, the default is `=`. `pair_delimiter` is an optional string that is used to split key value pairs, the default is a single space (` `).
+
+For example, the following target `"k1=v1 k2=v2 k3=v3"` will use default delimiters and be parsed into the following map:
+```
+{ "k1": "v1", "k2": "v2", "k3": "v3" }
+```
+
+Examples:
+
+- `ParseKeyValue("k1=v1 k2=v2 k3=v3")`
+- `ParseKeyValue("k1!v1_k2!v2_k3!v3", "!", "_")`
+- `ParseKeyValue(attributes["pairs"])`
+
+
+### ParseXML
+
+`ParseXML(target)`
+
+The `ParseXML` Converter returns a `pcommon.Map` struct that is the result of parsing the target string as an XML document.
+
+`target` is a Getter that returns a string. This string should be in XML format.
+If `target` is not a string, nil, or cannot be parsed as XML, `ParseXML` will return an error.
+
+Unmarshalling XML is done using the following rules:
+1. All character data for an XML element is trimmed, joined, and placed into the `content` field.
+2. The tag for an XML element is trimmed, and placed into the `tag` field.
+3. The attributes for an XML element is placed as a `pcommon.Map` into the `attribute` field.
+4. Processing instructions, directives, and comments are ignored and not represented in the resultant map.
+5. All child elements are parsed as above, and placed in a `pcommon.Slice`, which is then placed into the `children` field.
+
+For example, the following XML document:
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<Log>
+  <User>
+    <ID>00001</ID>
+    <Name type="first">Joe</Name>
+    <Email>joe.smith@example.com</Email>
+  </User>
+  <Text>User fired alert A</Text>
+</Log>
+```
+
+will be parsed as:
+```json
+{
+  "tag": "Log",
+  "children": [
+    {
+      "tag": "User",
+      "children": [
+        {
+          "tag": "ID",
+          "content": "00001"
+        },
+        {
+          "tag": "Name",
+          "content": "Joe",
+          "attributes": {
+            "type": "first"
+          }
+        },
+        {
+          "tag": "Email",
+          "content": "joe.smith@example.com"
+        }
+      ]
+    },
+    {
+      "tag": "Text",
+      "content": "User fired alert A"
+    }
+  ]
+}
+```
+
+Examples:
+
+- `ParseXML(body)`
+
+- `ParseXML(attributes["xml"])`
+
+- `ParseXML("<HostInfo hostname=\"example.com\" zone=\"east-1\" cloudprovider=\"aws\" />")`
+
+
 
 ### Seconds
 
@@ -905,6 +1087,33 @@ Examples:
 
 - `Split("A|B|C", "|")`
 
+### String
+
+`String(value)`
+
+The `String` Converter converts the `value` to string type.
+
+The returned type is `string`.
+
+- string. The function returns the `value` without changes.
+- []byte. The function returns the `value` as a string encoded in hexadecimal.
+- map. The function returns the `value` as a key-value-pair of type string.
+- slice. The function returns the `value` as a list formatted string.
+- pcommon.Value. The function returns the `value` as a string type.
+
+If `value` is of another type it gets marshalled to string type.
+If `value` is empty, or parsing failed, nil is always returned.
+
+The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+
+Examples:
+
+- `String("test")`
+- `String(attributes["http.method"])`
+- `String(span_id)`
+- `String([1,2,3])`
+- `String(false)`
+
 ### Substring
 
 `Substring(target, start, length)`
@@ -922,15 +1131,58 @@ Examples:
 
 ### Time
 
+`Time(target, format)`
+
 The `Time` Converter takes a string representation of a time and converts it to a Golang `time.Time`.
 
-`time` is a string. `format` is a string.
+`target` is a string. `format` is a string.
 
-If either `time` or `format` are nil, an error is returned. The parser used is the parser at [internal/coreinternal/parser](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/internal/coreinternal/timeutils). If the time and format do not follow the parsing rules used by this parser, an error is returned.
+If either `target` or `format` are nil, an error is returned. The parser used is the parser at [internal/coreinternal/parser](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/internal/coreinternal/timeutils). If the `target` and `format` do not follow the parsing rules used by this parser, an error is returned.
+
+`format` denotes a textual representation of the time value formatted according to ctime-like format string. It follows [standard Go Layout formatting](https://pkg.go.dev/time#pkg-constants) with few additional substitutes:
+| substitution | description | examples |
+|-----|-----|-----|
+|`%Y` | Year as a zero-padded number | 0001, 0002, ..., 2019, 2020, ..., 9999 |
+|`%y` | Year, last two digits as a zero-padded number | 01, ..., 99 |
+|`%m` | Month as a zero-padded number | 01, 02, ..., 12 |
+|`%o` | Month as a space-padded number | 1, 2, ..., 12 |
+|`%q` | Month as an unpadded number | 1,2,...,12 |
+|`%b`, `%h` | Abbreviated month name | Jan, Feb, ... |
+|`%B` | Full month name | January, February, ... |
+|`%d` | Day of the month as a zero-padded number | 01, 02, ..., 31 |
+|`%e` | Day of the month as a space-padded number| 1, 2, ..., 31 |
+|`%g` | Day of the month as a unpadded number | 1,2,...,31 |
+|`%a` | Abbreviated weekday name | Sun, Mon, ... |
+|`%A` | Full weekday name | Sunday, Monday, ... |
+|`%H` | Hour (24-hour clock) as a zero-padded number | 00, ..., 24 |
+|`%I` | Hour (12-hour clock) as a zero-padded number | 00, ..., 12 |
+|`%l` | Hour 12-hour clock | 0, ..., 24 |
+|`%p` | Locale’s equivalent of either AM or PM | AM, PM |
+|`%P` | Locale’s equivalent of either am or pm | am, pm |
+|`%M` | Minute as a zero-padded number | 00, 01, ..., 59 |
+|`%S` | Second as a zero-padded number | 00, 01, ..., 59 |
+|`%L` | Millisecond as a zero-padded number | 000, 001, ..., 999 |
+|`%f` | Microsecond as a zero-padded number | 000000, ..., 999999 |
+|`%s` | Nanosecond as a zero-padded number | 00000000, ..., 99999999 |
+|`%z` | UTC offset in the form ±HHMM[SS[.ffffff]] or empty | +0000, -0400 |
+|`%Z` | Timezone name or abbreviation or empty | UTC, EST, CST |
+|`%D`, `%x` | Short MM/DD/YYYY date, equivalent to %m/%d/%y | 01/21/2031 |
+|`%F` | Short YYYY-MM-DD date, equivalent to %Y-%m-%d | 2031-01-21 |
+|`%T`,`%X` | ISO 8601 time format (HH:MM:SS), equivalent to %H:%M:%S | 02:55:02 |
+|`%r` | 12-hour clock time | 02:55:02 pm |
+|`%R` | 24-hour HH:MM time, equivalent to %H:%M | 13:55 |
+|`%n` | New-line character ('\n') | |
+|`%t` | Horizontal-tab character ('\t') | |
+|`%%` | A % sign | |
+|`%c` | Date and time representation | Mon Jan 02 15:04:05 2006 |
 
 Examples:
 
 - `Time("02/04/2023", "%m/%d/%Y")`
+- `Time("Feb 15, 2023", "%b %d, %Y")`
+- `Time("2023-05-26 12:34:56 HST", "%Y-%m-%d %H:%M:%S %Z")`
+- `Time("1986-10-01T00:17:33 MST", "%Y-%m-%dT%H:%M:%S %Z")`
+- `Time("2012-11-01T22:08:41+0000 EST", "%Y-%m-%dT%H:%M:%S%z %Z")`
 
 ### TraceID
 
@@ -957,6 +1209,21 @@ While some common paths can return a `time.Time` object, you will most like need
 Examples:
 
 - `TruncateTime(start_time, Duration("1s"))`
+
+### Unix
+
+`Unix(seconds, Optional[nanoseconds])`
+
+The `Unix` Converter returns an epoch timestamp as a Unix time. Similar to [Golang's Unix function](https://pkg.go.dev/time#Unix).
+
+`seconds` is `int64`. If `seconds` is another type an error is returned.
+`nanoseconds` is `int64`. It is optional and its default value is 0. If `nanoseconds` is another type an error is returned.
+
+The returned type is `time.Time`.
+
+Examples:
+
+- `Unix(1672527600)`
 
 ### UnixMicro
 

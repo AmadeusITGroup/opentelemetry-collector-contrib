@@ -9,21 +9,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
-
+	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/connectortest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
-
-	"go.opentelemetry.io/collector/confmap/confmaptest"
 )
 
-// assertNoErrorHost implements a component.Host that asserts that there were no errors.
-type assertNoErrorHost struct {
-	component.Host
-	*testing.T
+func TestComponentFactoryType(t *testing.T) {
+	require.Equal(t, "spanmetrics", NewFactory().Type().String())
 }
 
-var _ component.Host = (*assertNoErrorHost)(nil)
+func TestComponentConfigStruct(t *testing.T) {
+	require.NoError(t, componenttest.CheckConfigStruct(NewFactory().CreateDefaultConfig()))
+}
 
 func TestComponentLifecycle(t *testing.T) {
 	factory := NewFactory()
@@ -55,9 +53,7 @@ func TestComponentLifecycle(t *testing.T) {
 			err = c.Shutdown(context.Background())
 			require.NoError(t, err)
 		})
-
 		t.Run(test.name+"-lifecycle", func(t *testing.T) {
-
 			firstConnector, err := test.createFn(context.Background(), connectortest.NewNopCreateSettings(), cfg)
 			require.NoError(t, err)
 			host := componenttest.NewNopHost()
