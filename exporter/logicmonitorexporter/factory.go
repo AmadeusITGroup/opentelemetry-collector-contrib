@@ -34,7 +34,7 @@ func createDefaultConfig() component.Config {
 	}
 }
 
-func createLogsExporter(ctx context.Context, set exporter.CreateSettings, cfg component.Config) (exporter.Logs, error) {
+func createLogsExporter(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Logs, error) {
 	lmLogExp := newLogsExporter(ctx, cfg, set)
 	c := cfg.(*Config)
 
@@ -46,10 +46,11 @@ func createLogsExporter(ctx context.Context, set exporter.CreateSettings, cfg co
 		exporterhelper.WithStart(lmLogExp.start),
 		exporterhelper.WithQueue(c.QueueSettings),
 		exporterhelper.WithRetry(c.BackOffConfig),
+		exporterhelper.WithShutdown(lmLogExp.shutdown),
 	)
 }
 
-func createTracesExporter(ctx context.Context, set exporter.CreateSettings, cfg component.Config) (exporter.Traces, error) {
+func createTracesExporter(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Traces, error) {
 	lmTraceExp := newTracesExporter(ctx, cfg, set)
 	c := cfg.(*Config)
 
@@ -61,5 +62,7 @@ func createTracesExporter(ctx context.Context, set exporter.CreateSettings, cfg 
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		exporterhelper.WithStart(lmTraceExp.start),
 		exporterhelper.WithRetry(c.BackOffConfig),
-		exporterhelper.WithQueue(c.QueueSettings))
+		exporterhelper.WithQueue(c.QueueSettings),
+		exporterhelper.WithShutdown(lmTraceExp.shutdown),
+	)
 }

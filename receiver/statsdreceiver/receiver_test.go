@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/consumer"
@@ -20,36 +19,8 @@ import (
 	"go.opentelemetry.io/collector/receiver/receivertest"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/statsdreceiver/internal/transport"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/statsdreceiver/internal/transport/client"
 )
-
-func Test_statsdreceiver_New(t *testing.T) {
-	defaultConfig := createDefaultConfig().(*Config)
-	type args struct {
-		config       Config
-		nextConsumer consumer.Metrics
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr error
-	}{
-		{
-			name: "nil_nextConsumer",
-			args: args{
-				config: *defaultConfig,
-			},
-			wantErr: component.ErrNilNextConsumer,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := newReceiver(receivertest.NewNopCreateSettings(), tt.args.config, tt.args.nextConsumer)
-			assert.Equal(t, tt.wantErr, err)
-		})
-	}
-}
 
 func Test_statsdreceiver_Start(t *testing.T) {
 	type args struct {
@@ -65,7 +36,7 @@ func Test_statsdreceiver_Start(t *testing.T) {
 			name: "unsupported transport",
 			args: args{
 				config: Config{
-					NetAddr: confignet.NetAddr{
+					NetAddr: confignet.AddrConfig{
 						Endpoint:  "localhost:8125",
 						Transport: "unknown",
 					},
@@ -77,7 +48,7 @@ func Test_statsdreceiver_Start(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			receiver, err := newReceiver(receivertest.NewNopCreateSettings(), tt.args.config, tt.args.nextConsumer)
+			receiver, err := newReceiver(receivertest.NewNopSettings(), tt.args.config, tt.args.nextConsumer)
 			require.NoError(t, err)
 			err = receiver.Start(context.Background(), componenttest.NewNopHost())
 			assert.Equal(t, tt.wantErr, err)
@@ -91,7 +62,7 @@ func TestStatsdReceiver_ShutdownBeforeStart(t *testing.T) {
 	ctx := context.Background()
 	cfg := createDefaultConfig().(*Config)
 	nextConsumer := consumertest.NewNop()
-	rcv, err := newReceiver(receivertest.NewNopCreateSettings(), *cfg, nextConsumer)
+	rcv, err := newReceiver(receivertest.NewNopSettings(), *cfg, nextConsumer)
 	assert.NoError(t, err)
 	r := rcv.(*statsdReceiver)
 	assert.NoError(t, r.Shutdown(ctx))
@@ -101,7 +72,7 @@ func TestStatsdReceiver_Flush(t *testing.T) {
 	ctx := context.Background()
 	cfg := createDefaultConfig().(*Config)
 	nextConsumer := consumertest.NewNop()
-	rcv, err := newReceiver(receivertest.NewNopCreateSettings(), *cfg, nextConsumer)
+	rcv, err := newReceiver(receivertest.NewNopSettings(), *cfg, nextConsumer)
 	assert.NoError(t, err)
 	r := rcv.(*statsdReceiver)
 	var metrics = pmetric.NewMetrics()
@@ -122,9 +93,9 @@ func Test_statsdreceiver_EndToEnd(t *testing.T) {
 			addr: testutil.GetAvailableLocalNetworkAddress(t, "udp"),
 			configFn: func() *Config {
 				return &Config{
-					NetAddr: confignet.NetAddr{
+					NetAddr: confignet.AddrConfig{
 						Endpoint:  defaultBindEndpoint,
-						Transport: defaultTransport,
+						Transport: confignet.TransportTypeUDP,
 					},
 					AggregationInterval: 4 * time.Second,
 				}
@@ -141,12 +112,9 @@ func Test_statsdreceiver_EndToEnd(t *testing.T) {
 			cfg := tt.configFn()
 			cfg.NetAddr.Endpoint = tt.addr
 			sink := new(consumertest.MetricsSink)
-			rcv, err := newReceiver(receivertest.NewNopCreateSettings(), *cfg, sink)
+			rcv, err := newReceiver(receivertest.NewNopSettings(), *cfg, sink)
 			require.NoError(t, err)
 			r := rcv.(*statsdReceiver)
-
-			mr := transport.NewMockReporter(1)
-			r.reporter = mr
 
 			require.NoError(t, r.Start(context.Background(), componenttest.NewNopHost()))
 			defer func() {

@@ -27,7 +27,7 @@ func TestValidate(t *testing.T) {
 	}{
 		{
 			desc:                  "missing username and password",
-			defaultConfigModifier: func(cfg *Config) {},
+			defaultConfigModifier: func(*Config) {},
 			expected: multierr.Combine(
 				errors.New(ErrNoUsername),
 				errors.New(ErrNoPassword),
@@ -80,7 +80,7 @@ func TestLoadConfig(t *testing.T) {
 
 	sub, err := cm.Sub(component.NewIDWithName(metadata.Type, "").String())
 	require.NoError(t, err)
-	require.NoError(t, component.UnmarshalConfig(sub, cfg))
+	require.NoError(t, sub.Unmarshal(cfg))
 
 	expected := factory.CreateDefaultConfig().(*Config)
 	expected.MetricsBuilderConfig = metadata.DefaultMetricsBuilderConfig()

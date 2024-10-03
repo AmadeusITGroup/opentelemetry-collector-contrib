@@ -26,14 +26,14 @@ func Test_NewTracesExporter(t *testing.T) {
 			},
 			APIToken: APIToken{AccessID: "testid", AccessKey: "testkey"},
 		}
-		set := exportertest.NewNopCreateSettings()
+		set := exportertest.NewNopSettings()
 		exp := newTracesExporter(context.Background(), config, set)
 		assert.NotNil(t, exp)
 	})
 }
 
 func TestPushTraceData(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		response := lmsdktraces.LMTraceIngestResponse{
 			Success: true,
 			Message: "",
@@ -42,7 +42,7 @@ func TestPushTraceData(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	params := exportertest.NewNopCreateSettings()
+	params := exportertest.NewNopSettings()
 	f := NewFactory()
 	config := &Config{
 		ClientConfig: confighttp.ClientConfig{
@@ -54,6 +54,7 @@ func TestPushTraceData(t *testing.T) {
 	exp, err := f.CreateTracesExporter(ctx, params, config)
 	assert.NoError(t, err)
 	assert.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+	defer func() { assert.NoError(t, exp.Shutdown(ctx)) }()
 
 	testTraces := ptrace.NewTraces()
 	generateTraces().CopyTo(testTraces)

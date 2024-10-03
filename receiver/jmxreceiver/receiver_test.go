@@ -18,7 +18,7 @@ import (
 )
 
 func TestReceiver(t *testing.T) {
-	params := receivertest.NewNopCreateSettings()
+	params := receivertest.NewNopSettings()
 	config := &Config{
 		Endpoint: "service:jmx:protocol:sap",
 		OTLPExporterConfig: otlpExporterConfig{
@@ -145,8 +145,8 @@ otel.resource.attributes = abc=123,one=two`,
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
-			params := receivertest.NewNopCreateSettings()
+		t.Run(test.name, func(*testing.T) {
+			params := receivertest.NewNopSettings()
 			receiver := newJMXMetricReceiver(params, test.config, consumertest.NewNop())
 			jmxConfig, err := receiver.buildJMXMetricGathererConfig()
 			if test.expectedError == "" {
@@ -178,8 +178,8 @@ func TestBuildOTLPReceiverInvalidEndpoints(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
-			params := receivertest.NewNopCreateSettings()
+		t.Run(test.name, func(*testing.T) {
+			params := receivertest.NewNopSettings()
 			jmxReceiver := newJMXMetricReceiver(params, test.config, consumertest.NewNop())
 			otlpReceiver, err := jmxReceiver.buildOTLPReceiver()
 			require.Error(t, err)

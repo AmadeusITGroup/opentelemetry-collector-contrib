@@ -19,8 +19,8 @@ import (
 func TestScraper(t *testing.T) {
 	f := NewFactory()
 	cfg := f.CreateDefaultConfig().(*Config)
-	scraper := newMemcachedScraper(receivertest.NewNopCreateSettings(), cfg)
-	scraper.newClient = func(endpoint string, timeout time.Duration) (client, error) {
+	scraper := newMemcachedScraper(receivertest.NewNopSettings(), cfg)
+	scraper.newClient = func(string, time.Duration) (client, error) {
 		return &fakeClient{}, nil
 	}
 

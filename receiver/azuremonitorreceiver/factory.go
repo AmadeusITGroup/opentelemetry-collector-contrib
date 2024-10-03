@@ -32,23 +32,24 @@ func NewFactory() receiver.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	cfg := scraperhelper.NewDefaultScraperControllerSettings(metadata.Type)
+	cfg := scraperhelper.NewDefaultControllerConfig()
 	cfg.CollectionInterval = defaultCollectionInterval
 
 	return &Config{
-		ScraperControllerSettings:        cfg,
-		MetricsBuilderConfig:             metadata.DefaultMetricsBuilderConfig(),
-		CacheResources:                   24 * 60 * 60,
-		CacheResourcesDefinitions:        24 * 60 * 60,
-		MaximumNumberOfMetricsInACall:    20,
-		Services:                         monitorServices,
-		Authentication:                   servicePrincipal,
-		Cloud:                            defaultCloud,
+		ControllerConfig:                  cfg,
+		MetricsBuilderConfig:              metadata.DefaultMetricsBuilderConfig(),
+		CacheResources:                    24 * 60 * 60,
+		CacheResourcesDefinitions:         24 * 60 * 60,
+		MaximumNumberOfMetricsInACall:     20,
+		MaximumNumberOfRecordsPerResource: 10,
+		Services:                          monitorServices,
+		Authentication:                    servicePrincipal,
+		Cloud:                             defaultCloud,
 		MaximumNumberOfDimensionsInACall: 10,
 	}
 }
 
-func createMetricsReceiver(_ context.Context, params receiver.CreateSettings, rConf component.Config, consumer consumer.Metrics) (receiver.Metrics, error) {
+func createMetricsReceiver(_ context.Context, params receiver.Settings, rConf component.Config, consumer consumer.Metrics) (receiver.Metrics, error) {
 	cfg, ok := rConf.(*Config)
 	if !ok {
 		return nil, errConfigNotAzureMonitor
@@ -68,5 +69,5 @@ func createMetricsReceiver(_ context.Context, params receiver.CreateSettings, rC
 		return nil, err
 	}
 
-	return scraperhelper.NewScraperControllerReceiver(&cfg.ScraperControllerSettings, params, consumer, scraperhelper.AddScraper(scraper))
+	return scraperhelper.NewScraperControllerReceiver(&cfg.ControllerConfig, params, consumer, scraperhelper.AddScraper(scraper))
 }

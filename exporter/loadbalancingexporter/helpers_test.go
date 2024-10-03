@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
@@ -66,56 +65,29 @@ func TestMergeTraces(t *testing.T) {
 	require.Equal(t, expectedTraces, mergedTraces)
 }
 
-func TestMergeMetricsTwoEmpty(t *testing.T) {
-	expectedEmpty := pmetric.NewMetrics()
-	metric1 := pmetric.NewMetrics()
-	metric2 := pmetric.NewMetrics()
+func benchMergeTraces(b *testing.B, tracesCount int) {
+	traces1 := ptrace.NewTraces()
+	traces2 := ptrace.NewTraces()
 
-	mergedMetrics := mergeMetrics(metric1, metric2)
+	for i := 0; i < tracesCount; i++ {
+		appendSimpleTraceWithID(traces2.ResourceSpans().AppendEmpty(), [16]byte{1, 2, 3, 4})
+	}
 
-	require.Equal(t, expectedEmpty, mergedMetrics)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		mergeTraces(traces1, traces2)
+	}
 }
 
-func TestMergeMetricsSingleEmpty(t *testing.T) {
-	expectedMetrics := simpleMetricsWithResource()
-
-	metric1 := pmetric.NewMetrics()
-	metric2 := simpleMetricsWithResource()
-
-	mergedMetrics := mergeMetrics(metric1, metric2)
-
-	require.Equal(t, expectedMetrics, mergedMetrics)
+func BenchmarkMergeTraces_X100(b *testing.B) {
+	benchMergeTraces(b, 100)
 }
 
-func TestMergeMetrics(t *testing.T) {
-	expectedMetrics := pmetric.NewMetrics()
-	expectedMetrics.ResourceMetrics().EnsureCapacity(3)
-	ametrics := expectedMetrics.ResourceMetrics().AppendEmpty()
-	ametrics.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-name-1")
-	ametrics.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty().SetName("m1")
-	bmetrics := expectedMetrics.ResourceMetrics().AppendEmpty()
-	bmetrics.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-name-2")
-	bmetrics.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty().SetName("m1")
-	cmetrics := expectedMetrics.ResourceMetrics().AppendEmpty()
-	cmetrics.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-name-3")
-	cmetrics.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty().SetName("m2")
+func BenchmarkMergeTraces_X500(b *testing.B) {
+	benchMergeTraces(b, 500)
+}
 
-	metric1 := pmetric.NewMetrics()
-	metric1.ResourceMetrics().EnsureCapacity(2)
-	m1ametrics := metric1.ResourceMetrics().AppendEmpty()
-	m1ametrics.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-name-1")
-	m1ametrics.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty().SetName("m1")
-	m1bmetrics := metric1.ResourceMetrics().AppendEmpty()
-	m1bmetrics.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-name-2")
-	m1bmetrics.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty().SetName("m1")
-
-	metric2 := pmetric.NewMetrics()
-	metric2.ResourceMetrics().EnsureCapacity(1)
-	m2cmetrics := metric2.ResourceMetrics().AppendEmpty()
-	m2cmetrics.Resource().Attributes().PutStr(conventions.AttributeServiceName, "service-name-3")
-	m2cmetrics.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty().SetName("m2")
-
-	mergedMetrics := mergeMetrics(metric1, metric2)
-
-	require.Equal(t, expectedMetrics, mergedMetrics)
+func BenchmarkMergeTraces_X1000(b *testing.B) {
+	benchMergeTraces(b, 1000)
 }
