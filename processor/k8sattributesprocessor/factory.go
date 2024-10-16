@@ -43,7 +43,7 @@ func createDefaultConfig() component.Config {
 
 func createTracesProcessor(
 	ctx context.Context,
-	params processor.CreateSettings,
+	params processor.Settings,
 	cfg component.Config,
 	next consumer.Traces,
 ) (processor.Traces, error) {
@@ -52,7 +52,7 @@ func createTracesProcessor(
 
 func createLogsProcessor(
 	ctx context.Context,
-	params processor.CreateSettings,
+	params processor.Settings,
 	cfg component.Config,
 	nextLogsConsumer consumer.Logs,
 ) (processor.Logs, error) {
@@ -61,7 +61,7 @@ func createLogsProcessor(
 
 func createMetricsProcessor(
 	ctx context.Context,
-	params processor.CreateSettings,
+	params processor.Settings,
 	cfg component.Config,
 	nextMetricsConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
@@ -70,14 +70,14 @@ func createMetricsProcessor(
 
 func createTracesProcessorWithOptions(
 	ctx context.Context,
-	set processor.CreateSettings,
+	set processor.Settings,
 	cfg component.Config,
 	next consumer.Traces,
 	options ...option,
 ) (processor.Traces, error) {
 	kp := createKubernetesProcessor(set, cfg, options...)
 
-	return processorhelper.NewTracesProcessor(
+	return processorhelper.NewTraces(
 		ctx,
 		set,
 		cfg,
@@ -90,14 +90,14 @@ func createTracesProcessorWithOptions(
 
 func createMetricsProcessorWithOptions(
 	ctx context.Context,
-	set processor.CreateSettings,
+	set processor.Settings,
 	cfg component.Config,
 	nextMetricsConsumer consumer.Metrics,
 	options ...option,
 ) (processor.Metrics, error) {
 	kp := createKubernetesProcessor(set, cfg, options...)
 
-	return processorhelper.NewMetricsProcessor(
+	return processorhelper.NewMetrics(
 		ctx,
 		set,
 		cfg,
@@ -110,14 +110,14 @@ func createMetricsProcessorWithOptions(
 
 func createLogsProcessorWithOptions(
 	ctx context.Context,
-	set processor.CreateSettings,
+	set processor.Settings,
 	cfg component.Config,
 	nextLogsConsumer consumer.Logs,
 	options ...option,
 ) (processor.Logs, error) {
 	kp := createKubernetesProcessor(set, cfg, options...)
 
-	return processorhelper.NewLogsProcessor(
+	return processorhelper.NewLogs(
 		ctx,
 		set,
 		cfg,
@@ -129,7 +129,7 @@ func createLogsProcessorWithOptions(
 }
 
 func createKubernetesProcessor(
-	params processor.CreateSettings,
+	params processor.Settings,
 	cfg component.Config,
 	options ...option,
 ) *kubernetesprocessor {

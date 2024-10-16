@@ -6,10 +6,13 @@ package k8sclusterreceiver // import "github.com/open-telemetry/opentelemetry-co
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 
@@ -30,10 +33,14 @@ type kubernetesReceiver struct {
 	resourceWatcher *resourceWatcher
 
 	config          *Config
-	settings        receiver.CreateSettings
+	settings        receiver.Settings
 	metricsConsumer consumer.Metrics
 	cancel          context.CancelFunc
 	obsrecv         *receiverhelper.ObsReport
+}
+
+type getExporters interface {
+	GetExportersWithSignal() map[pipeline.Signal]map[component.ID]component.Component
 }
 
 func (kr *kubernetesReceiver) Start(ctx context.Context, host component.Host) error {
@@ -43,9 +50,14 @@ func (kr *kubernetesReceiver) Start(ctx context.Context, host component.Host) er
 		return err
 	}
 
-	exporters := host.GetExporters() //nolint:staticcheck
+	ge, ok := host.(getExporters)
+	if !ok {
+		return fmt.Errorf("unable to get exporters")
+	}
+	exporters := ge.GetExportersWithSignal()
+
 	if err := kr.resourceWatcher.setupMetadataExporters(
-		exporters[component.DataTypeMetrics], kr.config.MetadataExporters); err != nil {
+		exporters[pipeline.SignalMetrics], kr.config.MetadataExporters); err != nil {
 		return err
 	}
 
@@ -66,7 +78,7 @@ func (kr *kubernetesReceiver) Start(ctx context.Context, host component.Host) er
 			if errors.Is(timedContextForInitialSync.Err(), context.DeadlineExceeded) {
 				kr.resourceWatcher.initialSyncTimedOut.Store(true)
 				kr.settings.Logger.Error("Timed out waiting for initial cache sync.")
-				kr.settings.TelemetrySettings.ReportStatus(component.NewFatalErrorEvent(errors.New("failed to start receiver")))
+				componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errors.New("failed to start receiver")))
 				return
 			}
 		}
@@ -115,7 +127,7 @@ func (kr *kubernetesReceiver) dispatchMetrics(ctx context.Context) {
 
 // newMetricsReceiver creates the Kubernetes cluster receiver with the given configuration.
 func newMetricsReceiver(
-	ctx context.Context, set receiver.CreateSettings, cfg component.Config, consumer consumer.Metrics,
+	ctx context.Context, set receiver.Settings, cfg component.Config, consumer consumer.Metrics,
 ) (receiver.Metrics, error) {
 	var err error
 	r := receivers.GetOrAdd(
@@ -134,7 +146,7 @@ func newMetricsReceiver(
 
 // newMetricsReceiver creates the Kubernetes cluster receiver with the given configuration.
 func newLogsReceiver(
-	ctx context.Context, set receiver.CreateSettings, cfg component.Config, consumer consumer.Logs,
+	ctx context.Context, set receiver.Settings, cfg component.Config, consumer consumer.Logs,
 ) (receiver.Logs, error) {
 	var err error
 	r := receivers.GetOrAdd(
@@ -152,7 +164,7 @@ func newLogsReceiver(
 }
 
 // newMetricsReceiver creates the Kubernetes cluster receiver with the given configuration.
-func newReceiver(_ context.Context, set receiver.CreateSettings, cfg component.Config) (component.Component, error) {
+func newReceiver(_ context.Context, set receiver.Settings, cfg component.Config) (component.Component, error) {
 	rCfg := cfg.(*Config)
 	obsrecv, err := receiverhelper.NewObsReport(
 		receiverhelper.ObsReportSettings{

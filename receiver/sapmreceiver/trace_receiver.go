@@ -17,10 +17,12 @@ import (
 	splunksapm "github.com/signalfx/sapm-proto/gen"
 	"github.com/signalfx/sapm-proto/sapmprotocol"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/errorutil"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
@@ -90,8 +92,7 @@ func (sr *sapmReceiver) HTTPHandlerFunc(rw http.ResponseWriter, req *http.Reques
 	// handle the request payload
 	err := sr.handleRequest(req)
 	if err != nil {
-		// TODO account for this error (throttled logging or metrics)
-		rw.WriteHeader(http.StatusBadRequest)
+		errorutil.HTTPError(rw, err)
 		return
 	}
 
@@ -150,13 +151,13 @@ func (sr *sapmReceiver) HTTPHandlerFunc(rw http.ResponseWriter, req *http.Reques
 }
 
 // Start starts the sapmReceiver's server.
-func (sr *sapmReceiver) Start(_ context.Context, host component.Host) error {
+func (sr *sapmReceiver) Start(ctx context.Context, host component.Host) error {
 	// server.Handler will be nil on initial call, otherwise noop.
 	if sr.server != nil && sr.server.Handler != nil {
 		return nil
 	}
 	// set up the listener
-	ln, err := sr.config.ServerConfig.ToListener()
+	ln, err := sr.config.ServerConfig.ToListener(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to bind to address %s: %w", sr.config.Endpoint, err)
 	}
@@ -166,7 +167,7 @@ func (sr *sapmReceiver) Start(_ context.Context, host component.Host) error {
 	nr.HandleFunc(sapmprotocol.TraceEndpointV2, sr.HTTPHandlerFunc)
 
 	// create a server with the handler
-	sr.server, err = sr.config.ServerConfig.ToServer(host, sr.settings, nr)
+	sr.server, err = sr.config.ServerConfig.ToServer(ctx, host, sr.settings, nr)
 	if err != nil {
 		return err
 	}
@@ -176,7 +177,7 @@ func (sr *sapmReceiver) Start(_ context.Context, host component.Host) error {
 	go func() {
 		defer sr.shutdownWG.Done()
 		if errHTTP := sr.server.Serve(ln); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
-			sr.settings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 		}
 	}()
 	return nil
@@ -197,7 +198,7 @@ var _ receiver.Traces = (*sapmReceiver)(nil)
 
 // newReceiver creates a sapmReceiver that receives SAPM over http
 func newReceiver(
-	params receiver.CreateSettings,
+	params receiver.Settings,
 	config *Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
@@ -207,6 +208,15 @@ func newReceiver(
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal default response body for %v receiver: %w", params.ID, err)
 	}
+
+	if config.AccessTokenPassthrough {
+		params.Logger.Warn(
+			"access_token_passthrough is deprecated. " +
+				"Please enable include_metadata in the receiver and add " +
+				"`metadata_keys: [X-Sf-Token]` to the batch processor",
+		)
+	}
+
 	transport := "http"
 	if config.TLSSetting != nil {
 		transport = "https"

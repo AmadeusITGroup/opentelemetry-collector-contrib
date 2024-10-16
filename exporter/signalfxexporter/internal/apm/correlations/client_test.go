@@ -63,7 +63,7 @@ func makeHandler(t *testing.T, corCh chan<- *request, forcedRespCode *atomic.Val
 		switch r.Method {
 		case http.MethodGet:
 			match := getPathRegexp.FindStringSubmatch(r.URL.Path)
-			if match == nil || len(match) < 3 {
+			if len(match) < 3 {
 				rw.WriteHeader(404)
 				return
 			}
@@ -78,7 +78,7 @@ func makeHandler(t *testing.T, corCh chan<- *request, forcedRespCode *atomic.Val
 			return
 		case http.MethodPut:
 			match := putPathRegexp.FindStringSubmatch(r.URL.Path)
-			if match == nil || len(match) < 4 {
+			if len(match) < 4 {
 				rw.WriteHeader(404)
 				return
 			}
@@ -100,7 +100,7 @@ func makeHandler(t *testing.T, corCh chan<- *request, forcedRespCode *atomic.Val
 
 		case http.MethodDelete:
 			match := deletePathRegexp.FindStringSubmatch(r.URL.Path)
-			if match == nil || len(match) < 5 {
+			if len(match) < 5 {
 				rw.WriteHeader(404)
 				return
 			}
@@ -124,7 +124,7 @@ func makeHandler(t *testing.T, corCh chan<- *request, forcedRespCode *atomic.Val
 	})
 }
 
-func setup(t *testing.T) (CorrelationClient, chan *request, *atomic.Value, *atomic.Value, context.CancelFunc) {
+func setup(t *testing.T) (CorrelationClient, *httptest.Server, chan *request, *atomic.Value, *atomic.Value, context.CancelFunc, context.Context) {
 	serverCh := make(chan *request, 100)
 
 	var forcedRespCode atomic.Value
@@ -132,10 +132,6 @@ func setup(t *testing.T) (CorrelationClient, chan *request, *atomic.Value, *atom
 	server := httptest.NewServer(makeHandler(t, serverCh, &forcedRespCode, &forcedRespPayload))
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-ctx.Done()
-		server.Close()
-	}()
 
 	serverURL, err := url.Parse(server.URL)
 	if err != nil {
@@ -176,13 +172,20 @@ func setup(t *testing.T) (CorrelationClient, chan *request, *atomic.Value, *atom
 	}
 	client.Start()
 
-	return client, serverCh, &forcedRespCode, &forcedRespPayload, cancel
+	return client, server, serverCh, &forcedRespCode, &forcedRespPayload, cancel, ctx
+}
+
+func teardown(ctx context.Context, client CorrelationClient, server *httptest.Server, serverCh chan *request, cancel context.CancelFunc) {
+	close(serverCh)
+	cancel()
+	<-ctx.Done()
+	client.Shutdown()
+	server.Close()
 }
 
 func TestCorrelationClient(t *testing.T) {
-	client, serverCh, forcedRespCode, forcedRespPayload, cancel := setup(t)
-	defer close(serverCh)
-	defer cancel()
+	client, server, serverCh, forcedRespCode, forcedRespPayload, cancel, ctx := setup(t)
+	defer teardown(ctx, client, server, serverCh, cancel)
 
 	for _, correlationType := range []Type{Service, Environment} {
 		for _, op := range []string{http.MethodPut, http.MethodDelete} {
@@ -205,7 +208,7 @@ func TestCorrelationClient(t *testing.T) {
 		forcedRespCode.Store(200)
 		respPayload := map[string][]string{"sf_services": {"testService1"}}
 		respJSON, err := json.Marshal(&respPayload)
-		require.Nil(t, err, "json marshaling failed in test")
+		require.NoError(t, err, "json marshaling failed in test")
 		forcedRespPayload.Store(respJSON)
 
 		var wg sync.WaitGroup
@@ -229,11 +232,11 @@ func TestCorrelationClient(t *testing.T) {
 		client.Correlate(testData, CorrelateCB(func(_ *Correlation, _ error) {}))
 
 		cors := waitForCors(serverCh, 1, 3)
-		require.Len(t, cors, 0)
+		require.Empty(t, cors)
 
 		forcedRespCode.Store(200)
 		cors = waitForCors(serverCh, 1, 3)
-		require.Len(t, cors, 0)
+		require.Empty(t, cors)
 	})
 	t.Run("does retry 500 responses", func(t *testing.T) {
 		forcedRespCode.Store(500)
@@ -242,11 +245,11 @@ func TestCorrelationClient(t *testing.T) {
 		client.Correlate(testData, CorrelateCB(func(_ *Correlation, _ error) {}))
 		// sending the testData twice tests deduplication, since the 500 status
 		// will trigger retries, and the requests should be deduped and the
-		// TotalRertriedUpdates should still only be 5
+		// TotalRetriedUpdates should still only be 5
 		client.Correlate(testData, CorrelateCB(func(_ *Correlation, _ error) {}))
 
 		cors := waitForCors(serverCh, 1, 4)
-		require.Len(t, cors, 0)
+		require.Empty(t, cors)
 		require.Equal(t, uint32(5), client.(*Client).maxAttempts)
 		require.Equal(t, int64(5), atomic.LoadInt64(&client.(*Client).TotalRetriedUpdates))
 

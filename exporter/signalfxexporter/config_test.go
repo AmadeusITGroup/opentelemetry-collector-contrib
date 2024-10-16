@@ -4,6 +4,7 @@
 package signalfxexporter
 
 import (
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"testing"
@@ -38,6 +39,10 @@ func TestLoadConfig(t *testing.T) {
 	seventy := 70
 	hundred := 100
 	idleConnTimeout := 30 * time.Second
+	defaultMaxIdleConns := http.DefaultTransport.(*http.Transport).MaxIdleConns
+	defaultMaxIdleConnsPerHost := http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost
+	defaultMaxConnsPerHost := http.DefaultTransport.(*http.Transport).MaxConnsPerHost
+	defaultIdleConnTimeout := http.DefaultTransport.(*http.Transport).IdleConnTimeout
 
 	tests := []struct {
 		id       component.ID
@@ -50,9 +55,10 @@ func TestLoadConfig(t *testing.T) {
 				Realm:       "ap0",
 				ClientConfig: confighttp.ClientConfig{
 					Timeout:              10 * time.Second,
-					Headers:              nil,
+					Headers:              map[string]configopaque.String{},
 					MaxIdleConns:         &hundred,
 					MaxIdleConnsPerHost:  &hundred,
+					MaxConnsPerHost:      &defaultMaxConnsPerHost,
 					IdleConnTimeout:      &idleConnTimeout,
 					HTTP2ReadIdleTimeout: 10 * time.Second,
 					HTTP2PingTimeout:     10 * time.Second,
@@ -65,7 +71,7 @@ func TestLoadConfig(t *testing.T) {
 					RandomizationFactor: backoff.DefaultRandomizationFactor,
 					Multiplier:          backoff.DefaultMultiplier,
 				},
-				QueueSettings: exporterhelper.NewDefaultQueueSettings(),
+				QueueSettings: exporterhelper.NewDefaultQueueConfig(),
 				AccessTokenPassthroughConfig: splunk.AccessTokenPassthroughConfig{
 					AccessTokenPassthrough: true,
 				},
@@ -86,8 +92,13 @@ func TestLoadConfig(t *testing.T) {
 				ExcludeProperties:   nil,
 				Correlation: &correlation.Config{
 					ClientConfig: confighttp.ClientConfig{
-						Endpoint: "",
-						Timeout:  5 * time.Second,
+						Endpoint:            "",
+						Timeout:             5 * time.Second,
+						Headers:             map[string]configopaque.String{},
+						MaxIdleConns:        &defaultMaxIdleConns,
+						MaxIdleConnsPerHost: &defaultMaxIdleConnsPerHost,
+						MaxConnsPerHost:     &defaultMaxConnsPerHost,
+						IdleConnTimeout:     &defaultIdleConnTimeout,
 					},
 					StaleServiceTimeout: 5 * time.Minute,
 					SyncAttributes: map[string]string{
@@ -104,6 +115,7 @@ func TestLoadConfig(t *testing.T) {
 					},
 				},
 				NonAlphanumericDimensionChars: "_-.",
+				SendOTLPHistograms:            false,
 			},
 		},
 		{
@@ -119,6 +131,7 @@ func TestLoadConfig(t *testing.T) {
 					},
 					MaxIdleConns:         &seventy,
 					MaxIdleConnsPerHost:  &seventy,
+					MaxConnsPerHost:      &defaultMaxConnsPerHost,
 					IdleConnTimeout:      &idleConnTimeout,
 					HTTP2ReadIdleTimeout: 10 * time.Second,
 					HTTP2PingTimeout:     10 * time.Second,
@@ -131,7 +144,7 @@ func TestLoadConfig(t *testing.T) {
 					RandomizationFactor: backoff.DefaultRandomizationFactor,
 					Multiplier:          backoff.DefaultMultiplier,
 				},
-				QueueSettings: exporterhelper.QueueSettings{
+				QueueSettings: exporterhelper.QueueConfig{
 					Enabled:      true,
 					NumConsumers: 2,
 					QueueSize:    10,
@@ -245,8 +258,13 @@ func TestLoadConfig(t *testing.T) {
 				},
 				Correlation: &correlation.Config{
 					ClientConfig: confighttp.ClientConfig{
-						Endpoint: "",
-						Timeout:  5 * time.Second,
+						Endpoint:            "",
+						Timeout:             5 * time.Second,
+						Headers:             map[string]configopaque.String{},
+						MaxIdleConns:        &defaultMaxIdleConns,
+						MaxIdleConnsPerHost: &defaultMaxIdleConnsPerHost,
+						MaxConnsPerHost:     &defaultMaxConnsPerHost,
+						IdleConnTimeout:     &defaultIdleConnTimeout,
 					},
 					StaleServiceTimeout: 5 * time.Minute,
 					SyncAttributes: map[string]string{
@@ -263,6 +281,7 @@ func TestLoadConfig(t *testing.T) {
 					},
 				},
 				NonAlphanumericDimensionChars: "_-.",
+				SendOTLPHistograms:            true,
 			},
 		},
 	}
@@ -274,7 +293,7 @@ func TestLoadConfig(t *testing.T) {
 
 			sub, err := cm.Sub(tt.id.String())
 			require.NoError(t, err)
-			require.NoError(t, component.UnmarshalConfig(sub, cfg))
+			require.NoError(t, sub.Unmarshal(cfg))
 
 			assert.NoError(t, component.ValidateConfig(cfg))
 			// We need to add the default exclude rules.
@@ -285,6 +304,7 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestConfigGetMetricTranslator(t *testing.T) {
+	done := make(chan struct{})
 	tests := []struct {
 		name    string
 		cfg     *Config
@@ -297,7 +317,7 @@ func TestConfigGetMetricTranslator(t *testing.T) {
 				DeltaTranslationTTL: 3600,
 			},
 			want: func() *translation.MetricTranslator {
-				translator, err := translation.NewMetricTranslator(defaultTranslationRules, 3600)
+				translator, err := translation.NewMetricTranslator(defaultTranslationRules, 3600, done)
 				require.NoError(t, err)
 				return translator
 			}(),
@@ -309,7 +329,7 @@ func TestConfigGetMetricTranslator(t *testing.T) {
 				DeltaTranslationTTL: 3600,
 			},
 			want: func() *translation.MetricTranslator {
-				translator, err := translation.NewMetricTranslator([]translation.Rule{}, 3600)
+				translator, err := translation.NewMetricTranslator([]translation.Rule{}, 3600, done)
 				require.NoError(t, err)
 				return translator
 			}(),
@@ -321,7 +341,7 @@ func TestConfigGetMetricTranslator(t *testing.T) {
 				DeltaTranslationTTL:            3600,
 			},
 			want: func() *translation.MetricTranslator {
-				translator, err := translation.NewMetricTranslator([]translation.Rule{}, 3600)
+				translator, err := translation.NewMetricTranslator([]translation.Rule{}, 3600, done)
 				require.NoError(t, err)
 				return translator
 			}(),
@@ -334,7 +354,7 @@ func TestConfigGetMetricTranslator(t *testing.T) {
 				DeltaTranslationTTL:            3600,
 			},
 			want: func() *translation.MetricTranslator {
-				translator, err := translation.NewMetricTranslator([]translation.Rule{}, 3600)
+				translator, err := translation.NewMetricTranslator([]translation.Rule{}, 3600, done)
 				require.NoError(t, err)
 				return translator
 			}(),
@@ -356,7 +376,7 @@ func TestConfigGetMetricTranslator(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.cfg.getMetricTranslator(zap.NewNop())
+			got, err := tt.cfg.getMetricTranslator(zap.NewNop(), done)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -504,7 +524,7 @@ func TestConfigValidateErrors(t *testing.T) {
 			cfg: &Config{
 				Realm:       "us0",
 				AccessToken: "access_token",
-				QueueSettings: exporterhelper.QueueSettings{
+				QueueSettings: exporterhelper.QueueConfig{
 					Enabled:   true,
 					QueueSize: -1,
 				},
@@ -550,7 +570,7 @@ func TestUnmarshalExcludeMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, tt.cfg.Unmarshal(confmap.NewFromStringMap(map[string]any{})))
+			require.NoError(t, confmap.NewFromStringMap(map[string]any{}).Unmarshal(tt.cfg))
 			assert.Len(t, tt.cfg.ExcludeMetrics, tt.excludeMetricsLen)
 		})
 	}

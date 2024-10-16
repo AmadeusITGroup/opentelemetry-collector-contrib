@@ -36,7 +36,7 @@ func pop[T Matchable](expectedErr error, expectedElemet T) func(t *testing.T, fi
 		el, err := fileset.Pop()
 		if expectedErr == nil {
 			require.NoError(t, err)
-			require.Equal(t, el, expectedElemet)
+			require.Equal(t, expectedElemet, el)
 			require.Equal(t, pr-1, fileset.Len())
 		} else {
 			require.ErrorIs(t, err, expectedErr)
@@ -59,20 +59,11 @@ func match[T Matchable](ele T, expect bool) func(t *testing.T, fileset *Fileset[
 	}
 }
 
-func newFingerprint(bytes []byte) *fingerprint.Fingerprint {
-	return &fingerprint.Fingerprint{
-		FirstBytes: bytes,
-	}
-}
-func newMetadata(bytes []byte) *reader.Metadata {
-	return &reader.Metadata{
-		Fingerprint: newFingerprint(bytes),
-	}
-}
-
 func newReader(bytes []byte) *reader.Reader {
 	return &reader.Reader{
-		Metadata: newMetadata(bytes),
+		Metadata: &reader.Metadata{
+			Fingerprint: fingerprint.New(bytes),
+		},
 	}
 }
 

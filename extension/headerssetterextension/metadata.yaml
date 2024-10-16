@@ -6,8 +6,6 @@ status:
     alpha: [extension]
   distributions:
   - contrib
-  - grafana
-  - sumo
   codeowners:
     active: [jpkrohling]
 tests:

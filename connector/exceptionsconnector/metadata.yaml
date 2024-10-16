@@ -3,8 +3,8 @@ type: exceptions
 status:
   class: connector
   stability:
-    development: [traces_to_metrics, traces_to_logs]
-  distributions: []
+    alpha: [traces_to_metrics, traces_to_logs]
+  distributions: [contrib]
   codeowners:
     active: [jpkrohling, marctc]
 

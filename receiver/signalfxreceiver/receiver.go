@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/mux"
 	sfxpb "github.com/signalfx/com_signalfx_metrics_protobuf/model"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -73,7 +74,7 @@ var (
 
 // sfxReceiver implements the receiver.Metrics for SignalFx metric protocol.
 type sfxReceiver struct {
-	settings        receiver.CreateSettings
+	settings        receiver.Settings
 	config          *Config
 	metricsConsumer consumer.Metrics
 	logsConsumer    consumer.Logs
@@ -86,7 +87,7 @@ var _ receiver.Metrics = (*sfxReceiver)(nil)
 
 // New creates the SignalFx receiver with the given configuration.
 func newReceiver(
-	settings receiver.CreateSettings,
+	settings receiver.Settings,
 	config Config,
 ) (*sfxReceiver, error) {
 	transport := "http"
@@ -121,17 +122,14 @@ func (r *sfxReceiver) RegisterLogsConsumer(lc consumer.Logs) {
 // Start tells the receiver to start its processing.
 // By convention the consumer of the received data is set when the receiver
 // instance is created.
-func (r *sfxReceiver) Start(_ context.Context, host component.Host) error {
-	if r.metricsConsumer == nil && r.logsConsumer == nil {
-		return component.ErrNilNextConsumer
-	}
+func (r *sfxReceiver) Start(ctx context.Context, host component.Host) error {
 
 	if r.server != nil {
 		return nil
 	}
 
 	// set up the listener
-	ln, err := r.config.ServerConfig.ToListener()
+	ln, err := r.config.ServerConfig.ToListener(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to bind to address %s: %w", r.config.Endpoint, err)
 	}
@@ -140,7 +138,7 @@ func (r *sfxReceiver) Start(_ context.Context, host component.Host) error {
 	mx.HandleFunc("/v2/datapoint", r.handleDatapointReq)
 	mx.HandleFunc("/v2/event", r.handleEventReq)
 
-	r.server, err = r.config.ServerConfig.ToServer(host, r.settings.TelemetrySettings, mx)
+	r.server, err = r.config.ServerConfig.ToServer(ctx, host, r.settings.TelemetrySettings, mx)
 	if err != nil {
 		return err
 	}
@@ -154,7 +152,7 @@ func (r *sfxReceiver) Start(_ context.Context, host component.Host) error {
 	go func() {
 		defer r.shutdownWG.Done()
 		if errHTTP := r.server.Serve(ln); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
-			r.settings.TelemetrySettings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 		}
 	}()
 	return nil

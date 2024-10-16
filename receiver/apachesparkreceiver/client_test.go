@@ -4,6 +4,7 @@
 package apachesparkreceiver
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -50,10 +52,10 @@ func TestNewApacheSparkClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			ac, err := newApacheSparkClient(tc.cfg, tc.host, tc.settings)
+			ac, err := newApacheSparkClient(context.Background(), tc.cfg, tc.host, tc.settings)
 			if tc.expectError != nil {
 				require.Nil(t, ac)
-				require.Contains(t, err.Error(), tc.expectError.Error())
+				require.ErrorContains(t, err, tc.expectError.Error())
 			} else {
 				require.NoError(t, err)
 
@@ -81,7 +83,7 @@ func TestClusterStats(t *testing.T) {
 						w.WriteHeader(http.StatusUnauthorized)
 					} else {
 						_, err := w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
 				}))
 				defer ts.Close()
@@ -101,11 +103,11 @@ func TestClusterStats(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "/metrics/json") {
 						_, err = w.Write([]byte("[{}]"))
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					} else {
 						_, err = w.Write(data)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -124,9 +126,9 @@ func TestClusterStats(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "/metrics/json") {
 						_, err = w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -164,7 +166,7 @@ func TestApplications(t *testing.T) {
 						w.WriteHeader(http.StatusUnauthorized)
 					} else {
 						_, err := w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
 				}))
 				defer ts.Close()
@@ -184,11 +186,11 @@ func TestApplications(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "applications") {
 						_, err = w.Write([]byte(""))
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					} else {
 						_, err = w.Write(data)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -207,9 +209,9 @@ func TestApplications(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "applications") {
 						_, err = w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -247,7 +249,7 @@ func TestStageStats(t *testing.T) {
 						w.WriteHeader(http.StatusUnauthorized)
 					} else {
 						_, err := w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
 				}))
 				defer ts.Close()
@@ -267,11 +269,11 @@ func TestStageStats(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "stages") {
 						_, err = w.Write([]byte(""))
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					} else {
 						_, err = w.Write(data)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -290,9 +292,9 @@ func TestStageStats(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "stages") {
 						_, err = w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -330,7 +332,7 @@ func TestExecutorStats(t *testing.T) {
 						w.WriteHeader(http.StatusUnauthorized)
 					} else {
 						_, err := w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
 				}))
 				defer ts.Close()
@@ -350,11 +352,11 @@ func TestExecutorStats(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "executors") {
 						_, err = w.Write([]byte(""))
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					} else {
 						_, err = w.Write(data)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -373,9 +375,9 @@ func TestExecutorStats(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "executors") {
 						_, err = w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -413,7 +415,7 @@ func TestJobStats(t *testing.T) {
 						w.WriteHeader(http.StatusUnauthorized)
 					} else {
 						_, err := w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
 				}))
 				defer ts.Close()
@@ -433,11 +435,11 @@ func TestJobStats(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "jobs") {
 						_, err = w.Write([]byte(""))
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					} else {
 						_, err = w.Write(data)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -456,9 +458,9 @@ func TestJobStats(t *testing.T) {
 					var err error
 					if strings.HasSuffix(r.RequestURI, "jobs") {
 						_, err = w.Write(data)
-						require.NoError(t, err)
+						assert.NoError(t, err)
 					}
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 				defer ts.Close()
 
@@ -487,7 +489,7 @@ func createTestClient(t *testing.T, baseEndpoint string) client {
 	cfg := createDefaultConfig().(*Config)
 	cfg.Endpoint = baseEndpoint
 
-	testClient, err := newApacheSparkClient(cfg, componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings())
+	testClient, err := newApacheSparkClient(context.Background(), cfg, componenttest.NewNopHost(), componenttest.NewNopTelemetrySettings())
 	require.NoError(t, err)
 	return testClient
 }

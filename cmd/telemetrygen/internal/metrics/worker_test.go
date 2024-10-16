@@ -93,9 +93,9 @@ func TestRateOfMetrics(t *testing.T) {
 
 	// assert
 	// the minimum acceptable number of metrics for the rate of 10/sec for half a second
-	assert.True(t, len(m.rms) >= 6, "there should have been more than 6 metrics, had %d", len(m.rms))
+	assert.GreaterOrEqual(t, len(m.rms), 6, "there should have been more than 6 metrics, had %d", len(m.rms))
 	// the maximum acceptable number of metrics for the rate of 10/sec for half a second
-	assert.True(t, len(m.rms) <= 20, "there should have been less than 20 metrics, had %d", len(m.rms))
+	assert.LessOrEqual(t, len(m.rms), 20, "there should have been less than 20 metrics, had %d", len(m.rms))
 }
 
 func TestUnthrottled(t *testing.T) {
@@ -117,7 +117,7 @@ func TestUnthrottled(t *testing.T) {
 	require.NoError(t, Run(cfg, expFunc, logger))
 
 	// assert
-	assert.True(t, len(m.rms) > 100, "there should have been more than 100 metrics, had %d", len(m.rms))
+	assert.Greater(t, len(m.rms), 100, "there should have been more than 100 metrics, had %d", len(m.rms))
 }
 
 func TestSumNoTelemetryAttrs(t *testing.T) {
@@ -141,9 +141,10 @@ func TestSumNoTelemetryAttrs(t *testing.T) {
 	rms := m.rms
 	for i := 0; i < qty; i++ {
 		ms := rms[i].ScopeMetrics[0].Metrics[0]
+		assert.Equal(t, "test", ms.Name)
 		// @note update when telemetrygen allow other metric types
 		attr := ms.Data.(metricdata.Sum[int64]).DataPoints[0].Attributes
-		assert.Equal(t, attr.Len(), 0, "it shouldn't have attrs here")
+		assert.Equal(t, 0, attr.Len(), "it shouldn't have attrs here")
 	}
 }
 
@@ -168,9 +169,10 @@ func TestGaugeNoTelemetryAttrs(t *testing.T) {
 	rms := m.rms
 	for i := 0; i < qty; i++ {
 		ms := rms[i].ScopeMetrics[0].Metrics[0]
+		assert.Equal(t, "test", ms.Name)
 		// @note update when telemetrygen allow other metric types
 		attr := ms.Data.(metricdata.Gauge[int64]).DataPoints[0].Attributes
-		assert.Equal(t, attr.Len(), 0, "it shouldn't have attrs here")
+		assert.Equal(t, 0, attr.Len(), "it shouldn't have attrs here")
 	}
 }
 
@@ -195,11 +197,12 @@ func TestSumSingleTelemetryAttr(t *testing.T) {
 	rms := m.rms
 	for i := 0; i < qty; i++ {
 		ms := rms[i].ScopeMetrics[0].Metrics[0]
+		assert.Equal(t, "test", ms.Name)
 		// @note update when telemetrygen allow other metric types
 		attr := ms.Data.(metricdata.Sum[int64]).DataPoints[0].Attributes
-		assert.Equal(t, attr.Len(), 1, "it must have a single attribute here")
+		assert.Equal(t, 1, attr.Len(), "it must have a single attribute here")
 		actualValue, _ := attr.Value(telemetryAttrKeyOne)
-		assert.Equal(t, actualValue.AsString(), telemetryAttrValueOne, "it should be "+telemetryAttrValueOne)
+		assert.Equal(t, telemetryAttrValueOne, actualValue.AsString(), "it should be "+telemetryAttrValueOne)
 	}
 }
 
@@ -224,11 +227,12 @@ func TestGaugeSingleTelemetryAttr(t *testing.T) {
 	rms := m.rms
 	for i := 0; i < qty; i++ {
 		ms := rms[i].ScopeMetrics[0].Metrics[0]
+		assert.Equal(t, "test", ms.Name)
 		// @note update when telemetrygen allow other metric types
 		attr := ms.Data.(metricdata.Gauge[int64]).DataPoints[0].Attributes
-		assert.Equal(t, attr.Len(), 1, "it must have a single attribute here")
+		assert.Equal(t, 1, attr.Len(), "it must have a single attribute here")
 		actualValue, _ := attr.Value(telemetryAttrKeyOne)
-		assert.Equal(t, actualValue.AsString(), telemetryAttrValueOne, "it should be "+telemetryAttrValueOne)
+		assert.Equal(t, telemetryAttrValueOne, actualValue.AsString(), "it should be "+telemetryAttrValueOne)
 	}
 }
 
@@ -303,6 +307,7 @@ func configWithNoAttributes(metric metricType, qty int) *Config {
 			TelemetryAttributes: nil,
 		},
 		NumMetrics: qty,
+		MetricName: "test",
 		MetricType: metric,
 	}
 }
@@ -314,6 +319,7 @@ func configWithOneAttribute(metric metricType, qty int) *Config {
 			TelemetryAttributes: common.KeyValue{telemetryAttrKeyOne: telemetryAttrValueOne},
 		},
 		NumMetrics: qty,
+		MetricName: "test",
 		MetricType: metric,
 	}
 }

@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/localhostgate"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/signalfxreceiver/internal/metadata"
 )
 
@@ -39,7 +39,7 @@ func NewFactory() receiver.Factory {
 func createDefaultConfig() component.Config {
 	return &Config{
 		ServerConfig: confighttp.ServerConfig{
-			Endpoint: localhostgate.EndpointForPort(defaultPort),
+			Endpoint: testutil.EndpointForPort(defaultPort),
 		},
 	}
 }
@@ -64,7 +64,7 @@ func extractPortFromEndpoint(endpoint string) (int, error) {
 // createMetricsReceiver creates a metrics receiver based on provided config.
 func createMetricsReceiver(
 	_ context.Context,
-	params receiver.CreateSettings,
+	params receiver.Settings,
 	cfg component.Config,
 	consumer consumer.Metrics,
 ) (receiver.Metrics, error) {
@@ -90,7 +90,7 @@ func createMetricsReceiver(
 // createLogsReceiver creates a logs receiver based on provided config.
 func createLogsReceiver(
 	_ context.Context,
-	params receiver.CreateSettings,
+	params receiver.Settings,
 	cfg component.Config,
 	consumer consumer.Logs,
 ) (receiver.Logs, error) {

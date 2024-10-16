@@ -19,6 +19,11 @@ import (
 )
 
 func TestValidate(t *testing.T) {
+	clientConfig := confighttp.NewDefaultClientConfig()
+	clientConfig.Endpoint = defaultEndpoint
+
+	clientConfigInvalid := confighttp.NewDefaultClientConfig()
+	clientConfigInvalid.Endpoint = "invalid://endpoint:  12efg"
 	defaultConfig := createDefaultConfig().(*Config)
 	defaultConfig.Username = "otelu"
 	defaultConfig.Password = "otelp"
@@ -31,10 +36,8 @@ func TestValidate(t *testing.T) {
 		{
 			desc: "missing username, password, and invalid endpoint",
 			cfg: &Config{
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "invalid://endpoint:  12efg",
-				},
-				ScraperControllerSettings: scraperhelper.NewDefaultScraperControllerSettings(metadata.Type),
+				ClientConfig:     clientConfigInvalid,
+				ControllerConfig: scraperhelper.NewDefaultControllerConfig(),
 			},
 			expectedErr: multierr.Combine(
 				errMissingUsername,
@@ -45,10 +48,9 @@ func TestValidate(t *testing.T) {
 		{
 			desc: "missing password and invalid endpoint",
 			cfg: &Config{
-				Username: "otelu",
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "invalid://endpoint:  12efg",
-				}, ScraperControllerSettings: scraperhelper.NewDefaultScraperControllerSettings(metadata.Type),
+				Username:         "otelu",
+				ClientConfig:     clientConfigInvalid,
+				ControllerConfig: scraperhelper.NewDefaultControllerConfig(),
 			},
 			expectedErr: multierr.Combine(
 				errMissingPassword,
@@ -58,11 +60,9 @@ func TestValidate(t *testing.T) {
 		{
 			desc: "missing username and invalid endpoint",
 			cfg: &Config{
-				Password: "otelp",
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "invalid://endpoint:  12efg",
-				},
-				ScraperControllerSettings: scraperhelper.NewDefaultScraperControllerSettings(metadata.Type),
+				Password:         "otelp",
+				ClientConfig:     clientConfigInvalid,
+				ControllerConfig: scraperhelper.NewDefaultControllerConfig(),
 			},
 			expectedErr: multierr.Combine(
 				errMissingUsername,
@@ -72,12 +72,10 @@ func TestValidate(t *testing.T) {
 		{
 			desc: "invalid endpoint",
 			cfg: &Config{
-				Username: "otelu",
-				Password: "otelp",
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "invalid://endpoint:  12efg",
-				},
-				ScraperControllerSettings: scraperhelper.NewDefaultScraperControllerSettings(metadata.Type),
+				Username:         "otelu",
+				Password:         "otelp",
+				ClientConfig:     clientConfigInvalid,
+				ControllerConfig: scraperhelper.NewDefaultControllerConfig(),
 			},
 			expectedErr: multierr.Combine(
 				fmt.Errorf("%w: %s", errInvalidEndpoint, `parse "invalid://endpoint:  12efg": invalid port ":  12efg" after host`),
@@ -86,12 +84,10 @@ func TestValidate(t *testing.T) {
 		{
 			desc: "valid config",
 			cfg: &Config{
-				Username: "otelu",
-				Password: "otelp",
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: defaultEndpoint,
-				},
-				ScraperControllerSettings: scraperhelper.NewDefaultScraperControllerSettings(metadata.Type),
+				Username:         "otelu",
+				Password:         "otelp",
+				ClientConfig:     clientConfig,
+				ControllerConfig: scraperhelper.NewDefaultControllerConfig(),
 			},
 			expectedErr: nil,
 		},
@@ -132,7 +128,7 @@ func TestLoadConfig(t *testing.T) {
 
 	sub, err := cm.Sub(component.NewIDWithName(metadata.Type, "").String())
 	require.NoError(t, err)
-	require.NoError(t, component.UnmarshalConfig(sub, cfg))
+	require.NoError(t, sub.Unmarshal(cfg))
 
 	expected := factory.CreateDefaultConfig().(*Config)
 	expected.Username = "otelu"

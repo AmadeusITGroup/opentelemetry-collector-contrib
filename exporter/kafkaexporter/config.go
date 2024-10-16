@@ -17,9 +17,9 @@ import (
 
 // Config defines configuration for Kafka exporter.
 type Config struct {
-	exporterhelper.TimeoutSettings `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
-	exporterhelper.QueueSettings   `mapstructure:"sending_queue"`
-	configretry.BackOffConfig      `mapstructure:"retry_on_failure"`
+	TimeoutSettings           exporterhelper.TimeoutConfig `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
+	QueueSettings             exporterhelper.QueueConfig   `mapstructure:"sending_queue"`
+	configretry.BackOffConfig `mapstructure:"retry_on_failure"`
 
 	// The list of kafka brokers (default localhost:9092)
 	Brokers []string `mapstructure:"brokers"`
@@ -40,6 +40,9 @@ type Config struct {
 	// The name of the kafka topic to export to (default otlp_spans for traces, otlp_metrics for metrics)
 	Topic string `mapstructure:"topic"`
 
+	// TopicFromAttribute is the name of the attribute to use as the topic name.
+	TopicFromAttribute string `mapstructure:"topic_from_attribute"`
+
 	// Encoding of messages (default "otlp_proto")
 	Encoding string `mapstructure:"encoding"`
 
@@ -47,6 +50,10 @@ type Config struct {
 	// Please note: does not have any effect on Jaeger encoding exporters since Jaeger exporters include
 	// trace ID as the message key by default.
 	PartitionTracesByID bool `mapstructure:"partition_traces_by_id"`
+
+	PartitionMetricsByResourceAttributes bool `mapstructure:"partition_metrics_by_resource_attributes"`
+
+	PartitionLogsByResourceAttributes bool `mapstructure:"partition_logs_by_resource_attributes"`
 
 	// Metadata is the namespace for metadata management properties used by the
 	// Client, and shared by the Producer/Consumer.

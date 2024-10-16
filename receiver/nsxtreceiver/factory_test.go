@@ -30,13 +30,13 @@ func TestDefaultConfig(t *testing.T) {
 	require.ErrorContains(t, err, "no manager endpoint was specified")
 }
 
-func TestCreateMetricsReceiver(t *testing.T) {
+func TestCreateMetrics(t *testing.T) {
 	factory := NewFactory()
-	_, err := factory.CreateMetricsReceiver(
+	_, err := factory.CreateMetrics(
 		context.Background(),
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		&Config{
-			ScraperControllerSettings: scraperhelper.ScraperControllerSettings{
+			ControllerConfig: scraperhelper.ControllerConfig{
 				CollectionInterval: 10 * time.Second,
 				InitialDelay:       time.Second,
 			},
@@ -46,11 +46,11 @@ func TestCreateMetricsReceiver(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestCreateMetricsReceiverNotNSX(t *testing.T) {
+func TestCreateMetricsNotNSX(t *testing.T) {
 	factory := NewFactory()
-	_, err := factory.CreateMetricsReceiver(
+	_, err := factory.CreateMetrics(
 		context.Background(),
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		receivertest.NewNopFactory().CreateDefaultConfig(),
 		consumertest.NewNop(),
 	)

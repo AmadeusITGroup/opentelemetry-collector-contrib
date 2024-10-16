@@ -3,9 +3,10 @@ type: opamp
 status:
   class: extension
   stability:
-    development: [extension]
+    alpha: [extension]
+  distributions: [contrib]
   codeowners:
-    active: [portertech, evan-bradley, tigrannajaryan]
+    active: [portertech, evan-bradley, tigrannajaryan, BinaryFissionGames]
 
 tests:
   config:

@@ -16,6 +16,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/julienschmidt/httprouter"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
@@ -36,7 +37,7 @@ var (
 const healthyResponse = `{"text": "Webhookevent receiver is healthy"}`
 
 type eventReceiver struct {
-	settings    receiver.CreateSettings
+	settings    receiver.Settings
 	cfg         *Config
 	logConsumer consumer.Logs
 	server      *http.Server
@@ -45,7 +46,7 @@ type eventReceiver struct {
 	gzipPool    *sync.Pool
 }
 
-func newLogsReceiver(params receiver.CreateSettings, cfg Config, consumer consumer.Logs) (receiver.Logs, error) {
+func newLogsReceiver(params receiver.Settings, cfg Config, consumer consumer.Logs) (receiver.Logs, error) {
 	if consumer == nil {
 		return nil, errNilLogsConsumer
 	}
@@ -82,14 +83,14 @@ func newLogsReceiver(params receiver.CreateSettings, cfg Config, consumer consum
 }
 
 // Start function manages receiver startup tasks. part of the receiver.Logs interface.
-func (er *eventReceiver) Start(_ context.Context, host component.Host) error {
+func (er *eventReceiver) Start(ctx context.Context, host component.Host) error {
 	// noop if not nil. if start has not been called before these values should be nil.
 	if er.server != nil && er.server.Handler != nil {
 		return nil
 	}
 
 	// create listener from config
-	ln, err := er.cfg.ServerConfig.ToListener()
+	ln, err := er.cfg.ServerConfig.ToListener(ctx)
 	if err != nil {
 		return err
 	}
@@ -101,7 +102,7 @@ func (er *eventReceiver) Start(_ context.Context, host component.Host) error {
 	router.GET(er.cfg.HealthPath, er.handleHealthCheck)
 
 	// webhook server standup and configuration
-	er.server, err = er.cfg.ServerConfig.ToServer(host, er.settings.TelemetrySettings, router)
+	er.server, err = er.cfg.ServerConfig.ToServer(ctx, host, er.settings.TelemetrySettings, router)
 	if err != nil {
 		return err
 	}
@@ -125,7 +126,7 @@ func (er *eventReceiver) Start(_ context.Context, host component.Host) error {
 	go func() {
 		defer er.shutdownWG.Done()
 		if errHTTP := er.server.Serve(ln); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
-			er.settings.TelemetrySettings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 		}
 	}()
 
@@ -190,7 +191,7 @@ func (er *eventReceiver) handleReq(w http.ResponseWriter, r *http.Request, _ htt
 		defer er.gzipPool.Put(reader)
 	}
 
-	// finish reading the body into a log
+	// send body into a scanner and then convert the request body into a log
 	sc := bufio.NewScanner(bodyReader)
 	ld, numLogs := reqToLog(sc, r.URL.Query(), er.cfg, er.settings)
 	consumerErr := er.logConsumer.ConsumeLogs(ctx, ld)

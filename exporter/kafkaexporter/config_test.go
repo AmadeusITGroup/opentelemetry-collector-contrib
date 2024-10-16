@@ -35,11 +35,11 @@ func TestLoadConfig(t *testing.T) {
 	}{
 		{
 			id: component.NewIDWithName(metadata.Type, ""),
-			option: func(conf *Config) {
+			option: func(_ *Config) {
 				// intentionally left blank so we use default config
 			},
 			expected: &Config{
-				TimeoutSettings: exporterhelper.TimeoutSettings{
+				TimeoutSettings: exporterhelper.TimeoutConfig{
 					Timeout: 10 * time.Second,
 				},
 				BackOffConfig: configretry.BackOffConfig{
@@ -50,16 +50,18 @@ func TestLoadConfig(t *testing.T) {
 					RandomizationFactor: backoff.DefaultRandomizationFactor,
 					Multiplier:          backoff.DefaultMultiplier,
 				},
-				QueueSettings: exporterhelper.QueueSettings{
+				QueueSettings: exporterhelper.QueueConfig{
 					Enabled:      true,
 					NumConsumers: 2,
 					QueueSize:    10,
 				},
-				Topic:               "spans",
-				Encoding:            "otlp_proto",
-				PartitionTracesByID: true,
-				Brokers:             []string{"foo:123", "bar:456"},
-				ClientID:            "test_client_id",
+				Topic:                                "spans",
+				Encoding:                             "otlp_proto",
+				PartitionTracesByID:                  true,
+				PartitionMetricsByResourceAttributes: true,
+				PartitionLogsByResourceAttributes:    true,
+				Brokers:                              []string{"foo:123", "bar:456"},
+				ClientID:                             "test_client_id",
 				Authentication: kafka.Authentication{
 					PlainText: &kafka.PlainTextConfig{
 						Username: "jdoe",
@@ -93,7 +95,7 @@ func TestLoadConfig(t *testing.T) {
 				}
 			},
 			expected: &Config{
-				TimeoutSettings: exporterhelper.TimeoutSettings{
+				TimeoutSettings: exporterhelper.TimeoutConfig{
 					Timeout: 10 * time.Second,
 				},
 				BackOffConfig: configretry.BackOffConfig{
@@ -104,16 +106,18 @@ func TestLoadConfig(t *testing.T) {
 					RandomizationFactor: backoff.DefaultRandomizationFactor,
 					Multiplier:          backoff.DefaultMultiplier,
 				},
-				QueueSettings: exporterhelper.QueueSettings{
+				QueueSettings: exporterhelper.QueueConfig{
 					Enabled:      true,
 					NumConsumers: 2,
 					QueueSize:    10,
 				},
-				Topic:               "spans",
-				Encoding:            "otlp_proto",
-				PartitionTracesByID: true,
-				Brokers:             []string{"foo:123", "bar:456"},
-				ClientID:            "test_client_id",
+				Topic:                                "spans",
+				Encoding:                             "otlp_proto",
+				PartitionTracesByID:                  true,
+				PartitionMetricsByResourceAttributes: true,
+				PartitionLogsByResourceAttributes:    true,
+				Brokers:                              []string{"foo:123", "bar:456"},
+				ClientID:                             "test_client_id",
 				Authentication: kafka.Authentication{
 					PlainText: &kafka.PlainTextConfig{
 						Username: "jdoe",
@@ -146,7 +150,7 @@ func TestLoadConfig(t *testing.T) {
 				conf.ResolveCanonicalBootstrapServersOnly = true
 			},
 			expected: &Config{
-				TimeoutSettings: exporterhelper.TimeoutSettings{
+				TimeoutSettings: exporterhelper.TimeoutConfig{
 					Timeout: 10 * time.Second,
 				},
 				BackOffConfig: configretry.BackOffConfig{
@@ -157,7 +161,7 @@ func TestLoadConfig(t *testing.T) {
 					RandomizationFactor: backoff.DefaultRandomizationFactor,
 					Multiplier:          backoff.DefaultMultiplier,
 				},
-				QueueSettings: exporterhelper.QueueSettings{
+				QueueSettings: exporterhelper.QueueConfig{
 					Enabled:      true,
 					NumConsumers: 2,
 					QueueSize:    10,
@@ -165,6 +169,8 @@ func TestLoadConfig(t *testing.T) {
 				Topic:                                "spans",
 				Encoding:                             "otlp_proto",
 				PartitionTracesByID:                  true,
+				PartitionMetricsByResourceAttributes: true,
+				PartitionLogsByResourceAttributes:    true,
 				Brokers:                              []string{"foo:123", "bar:456"},
 				ClientID:                             "test_client_id",
 				ResolveCanonicalBootstrapServersOnly: true,
@@ -196,7 +202,7 @@ func TestLoadConfig(t *testing.T) {
 
 			sub, err := cm.Sub(tt.id.String())
 			require.NoError(t, err)
-			require.NoError(t, component.UnmarshalConfig(sub, cfg))
+			require.NoError(t, sub.Unmarshal(cfg))
 
 			assert.NoError(t, component.ValidateConfig(cfg))
 			assert.Equal(t, tt.expected, cfg)
@@ -329,8 +335,8 @@ func Test_saramaProducerCompressionCodec(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			c, err := saramaProducerCompressionCodec(test.compression)
-			assert.Equal(t, c, test.expectedCompression)
-			assert.Equal(t, err, test.expectedError)
+			assert.Equal(t, test.expectedCompression, c)
+			assert.Equal(t, test.expectedError, err)
 		})
 	}
 }

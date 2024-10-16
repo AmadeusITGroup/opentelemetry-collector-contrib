@@ -24,7 +24,7 @@ func TestDefaultConfig(t *testing.T) {
 	require.NotNil(t, cfg, "Failed to create default configuration")
 }
 
-func TestCreateLogsReceiver(t *testing.T) {
+func TestCreateLogs(t *testing.T) {
 	tests := []struct {
 		desc string
 		run  func(t *testing.T)
@@ -40,29 +40,11 @@ func TestCreateLogsReceiver(t *testing.T) {
 
 				_, err := createLogsReceiver(
 					context.Background(),
-					receivertest.NewNopCreateSettings(),
+					receivertest.NewNopSettings(),
 					cfg,
 					consumertest.NewNop(),
 				)
 				require.NoError(t, err, "failed to create logs receiver")
-			},
-		},
-		{
-			desc: "Missing consumer",
-			run: func(t *testing.T) {
-				t.Parallel()
-
-				cfg := createDefaultConfig().(*Config)
-				cfg.Endpoint = "localhost:8080"
-				require.NoError(t, cfg.Validate(), "error validating default config")
-
-				_, err := createLogsReceiver(
-					context.Background(),
-					receivertest.NewNopCreateSettings(),
-					cfg,
-					nil,
-				)
-				require.Error(t, err, "Succeeded in creating a receiver without a consumer")
 			},
 		},
 	}

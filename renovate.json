@@ -5,7 +5,7 @@
       "dependencies"
     ],
     "constraints": {
-      "go": "1.20"
+      "go": "1.22.0"
     },
     "schedule": ["every tuesday"],
     "extends": ["config:recommended"],
@@ -64,8 +64,23 @@
       },
       {
         "matchManagers": ["gomod"],
-        "matchSourceUrlPrefixes": ["https://golang.org"],
-        "groupName": "All golang.org packages"
+        "matchPackagePrefixes": ["golang.org/x"],
+        "groupName": "All golang.org/x packages"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchPackagePrefixes": ["go.opentelemetry.io/build-tools"],
+        "groupName": "All go.opentelemetry.io/build-tools packages"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchSourceUrlPrefixes": ["https://go.opentelemetry.io/otel"],
+        "groupName": "All go.opentelemetry.io/otel packages"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchPackagePrefixes": ["cloud.google.com/go"],
+        "groupName": "All cloud.google.com/go packages"
       },
       {
         "matchManagers": ["gomod"],
@@ -74,19 +89,25 @@
       },
       {
         "matchManagers": ["gomod"],
-        "matchSourceUrlPrefixes": ["https://go.opentelemetry.io/collector"],
+        "matchSourceUrls": ["https://github.com/open-telemetry/opentelemetry-collector"],
         "groupName": "All OpenTelemetry Collector dev packages",
         "matchUpdateTypes": ["digest"]
       },
       {
         "matchManagers": ["gomod"],
-        "matchSourceUrlPrefixes": ["https://go.opentelemetry.io/collector"],
+        "matchSourceUrls": ["https://github.com/open-telemetry/opentelemetry-collector"],
         "groupName": "All OpenTelemetry Collector packages",
         "matchUpdateTypes": ["major", "minor", "patch"]
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchSourceUrls": [
+          "https://github.com/open-telemetry/opentelemetry-go-contrib"
+        ],
+        "groupName": "All opentelemetry-go-contrib packages"
       }
     ],
     "ignoreDeps": [
-      "github.com/mattn/go-ieproxy",
       "github.com/DataDog/datadog-agent/pkg/trace/exportable"
     ],
     "prConcurrentLimit": 200,

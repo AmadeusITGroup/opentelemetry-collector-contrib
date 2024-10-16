@@ -20,13 +20,13 @@ var _ receiver.Metrics = (*purefaReceiver)(nil)
 
 type purefaReceiver struct {
 	cfg  *Config
-	set  receiver.CreateSettings
+	set  receiver.Settings
 	next consumer.Metrics
 
 	wrapped receiver.Metrics
 }
 
-func newReceiver(cfg *Config, set receiver.CreateSettings, next consumer.Metrics) *purefaReceiver {
+func newReceiver(cfg *Config, set receiver.Settings, next consumer.Metrics) *purefaReceiver {
 	return &purefaReceiver{
 		cfg:  cfg,
 		set:  set,
@@ -91,7 +91,7 @@ func (r *purefaReceiver) Start(ctx context.Context, compHost component.Host) err
 	promRecvCfg := fact.CreateDefaultConfig().(*prometheusreceiver.Config)
 	promRecvCfg.PrometheusConfig = &prometheusreceiver.PromConfig{ScrapeConfigs: scrapeCfgs}
 
-	wrapped, err := fact.CreateMetricsReceiver(ctx, r.set, promRecvCfg, r.next)
+	wrapped, err := fact.CreateMetrics(ctx, r.set, promRecvCfg, r.next)
 	if err != nil {
 		return err
 	}

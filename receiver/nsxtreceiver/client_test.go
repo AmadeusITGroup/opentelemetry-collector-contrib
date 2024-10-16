@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -26,7 +27,7 @@ const (
 )
 
 func TestNewClientFailureToParse(t *testing.T) {
-	_, err := newClient(&Config{
+	_, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: "http://\x00",
 		},
@@ -36,7 +37,9 @@ func TestNewClientFailureToParse(t *testing.T) {
 
 func TestTransportNodes(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -49,7 +52,9 @@ func TestTransportNodes(t *testing.T) {
 
 func TestClusterNodes(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -62,7 +67,9 @@ func TestClusterNodes(t *testing.T) {
 
 func TestClusterNodeInterface(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -75,7 +82,9 @@ func TestClusterNodeInterface(t *testing.T) {
 
 func TestTransportNodeInterface(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -88,7 +97,9 @@ func TestTransportNodeInterface(t *testing.T) {
 
 func TestTransportNodeStatus(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -101,7 +112,9 @@ func TestTransportNodeStatus(t *testing.T) {
 
 func TestClusterNodeStatus(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -114,7 +127,9 @@ func TestClusterNodeStatus(t *testing.T) {
 
 func TestTransportNodeInterfaceStatus(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -127,7 +142,9 @@ func TestTransportNodeInterfaceStatus(t *testing.T) {
 
 func TestManagerNodeInterfaceStatus(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -140,7 +157,9 @@ func TestManagerNodeInterfaceStatus(t *testing.T) {
 
 func TestDoRequestBadUrl(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
 		},
@@ -153,7 +172,9 @@ func TestDoRequestBadUrl(t *testing.T) {
 
 func TestPermissionDenied_ClusterNodes(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		Password: badPassword,
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
@@ -167,7 +188,9 @@ func TestPermissionDenied_ClusterNodes(t *testing.T) {
 
 func TestPermissionDenied_Interfaces(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		Password: badPassword,
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
@@ -181,7 +204,9 @@ func TestPermissionDenied_Interfaces(t *testing.T) {
 
 func TestPermissionDenied_InterfaceStatus(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		Password: badPassword,
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
@@ -195,7 +220,9 @@ func TestPermissionDenied_InterfaceStatus(t *testing.T) {
 
 func TestPermissionDenied_NodeStatus(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		Password: badPassword,
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
@@ -209,7 +236,9 @@ func TestPermissionDenied_NodeStatus(t *testing.T) {
 
 func TestPermissionDenied_TransportNodes(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		Password: badPassword,
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
@@ -223,7 +252,9 @@ func TestPermissionDenied_TransportNodes(t *testing.T) {
 
 func TestInternalServerError(t *testing.T) {
 	nsxMock := mockServer(t)
-	client, err := newClient(&Config{
+	defer nsxMock.Close()
+
+	client, err := newClient(context.Background(), &Config{
 		Username: user500,
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: nsxMock.URL,
@@ -279,56 +310,56 @@ func mockServer(t *testing.T) *httptest.Server {
 		if req.URL.Path == "/api/v1/transport-nodes" {
 			rw.WriteHeader(200)
 			_, err = rw.Write(tNodeBytes)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 
 		if req.URL.Path == "/api/v1/cluster/nodes" {
 			rw.WriteHeader(200)
 			_, err = rw.Write(cNodeBytes)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 
 		if req.URL.Path == fmt.Sprintf("/api/v1/cluster/nodes/%s/network/interfaces", managerNode1) {
 			rw.WriteHeader(200)
 			_, err = rw.Write(mNodeInterfaces)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 
 		if req.URL.Path == fmt.Sprintf("/api/v1/transport-nodes/%s/status", transportNode1) {
 			rw.WriteHeader(200)
 			_, err = rw.Write(tNodeStatus)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 
 		if req.URL.Path == fmt.Sprintf("/api/v1/transport-nodes/%s/network/interfaces", transportNode1) {
 			rw.WriteHeader(200)
 			_, err = rw.Write(tNodeInterfaces)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 
 		if req.URL.Path == fmt.Sprintf("/api/v1/transport-nodes/%s/network/interfaces/%s/stats", transportNode1, transportNodeNic1) {
 			rw.WriteHeader(200)
 			_, err = rw.Write(tNodeInterfaceStats)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 
 		if req.URL.Path == fmt.Sprintf("/api/v1/cluster/nodes/%s/network/interfaces/%s/stats", managerNode1, managerNodeNic1) {
 			rw.WriteHeader(200)
 			_, err = rw.Write(mNodeInterfaceStats)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 
 		if req.URL.Path == fmt.Sprintf("/api/v1/cluster/nodes/%s/status", managerNode1) {
 			rw.WriteHeader(200)
 			_, err = rw.Write(mNodeStatus)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 

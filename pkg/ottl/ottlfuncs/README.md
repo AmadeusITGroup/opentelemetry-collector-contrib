@@ -45,8 +45,10 @@ Editors:
 
 Available Editors:
 
+- [append](#append)
 - [delete_key](#delete_key)
 - [delete_matching_keys](#delete_matching_keys)
+- [keep_matching_keys](#keep_matching_keys)
 - [flatten](#flatten)
 - [keep_keys](#keep_keys)
 - [limit](#limit)
@@ -57,6 +59,19 @@ Available Editors:
 - [replace_pattern](#replace_pattern)
 - [set](#set)
 - [truncate_all](#truncate_all)
+
+### append
+
+`append(target, Optional[value], Optional[values])`
+
+The `append` function appends single or multiple string values to `target`. 
+`append` converts scalar values into an array if the field exists but is not an array, and creates an array containing the provided values if the field doesn’t exist.
+
+Resulting field is always of type `pcommon.Slice` and will not convert the types of existing or new items in the slice. This means that it is possible to create a slice whose elements have different types.  Be careful when using `append` to set attribute values, as this will produce values that are not possible to create through OpenTelemetry APIs [according to](https://opentelemetry.io/docs/specs/otel/common/#attribute) the OpenTelemetry specification.
+
+  - `append(attributes["tags"], "prod")`
+  - `append(attributes["tags"], values = ["staging", "staging:east"])`
+  - `append(attributes["tags_copy"], attributes["tags"])`
 
 ### delete_key
 
@@ -91,6 +106,23 @@ Examples:
 - `delete_matching_keys(attributes, "(?i).*password.*")`
 
 - `delete_matching_keys(resource.attributes, "(?i).*password.*")`
+
+### keep_matching_keys
+
+`keep_matching_keys(target, pattern)`
+
+The `keep_matching_keys` function keeps all keys from a `pcommon.Map` that match a regex pattern.
+
+`target` is a path expression to a `pcommon.Map` type field. `pattern` is a regex string.
+
+All keys that match the pattern will remain in the map, while non matching keys will be removed.
+
+Examples:
+
+
+- `keep_matching_keys(attributes, "(?i).*version.*")`
+
+- `keep_matching_keys(resource.attributes, "(?i).*version.*")`
 
 ### flatten
 
@@ -246,22 +278,23 @@ Examples:
 
 ### replace_all_matches
 
-`replace_all_matches(target, pattern, replacement, Optional[function])`
+`replace_all_matches(target, pattern, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_all_matches` function replaces any matching string value with the replacement string.
 
 `target` is a path expression to a `pcommon.Map` type field. `pattern` is a string following [filepath.Match syntax](https://pkg.go.dev/path/filepath#Match). `replacement` is either a path expression to a string telemetry field or a literal string. `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces any matching string with the hash value of `replacement`.
+`replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 Each string value in `target` that matches `pattern` will get replaced with `replacement`. Non-string values are ignored.
 
 Examples:
 
 - `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}")`
-- `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256)`
+- `replace_all_matches(attributes, "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256, "/user/%s")`
 
 ### replace_all_patterns
 
-`replace_all_patterns(target, mode, regex, replacement, Optional[function])`
+`replace_all_patterns(target, mode, regex, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_all_patterns` function replaces any segments in a string value or key that match the regex pattern with the replacement string.
 
@@ -271,7 +304,7 @@ The `replace_all_patterns` function replaces any segments in a string value or k
 
 If one or more sections of `target` match `regex` they will get replaced with `replacement`.
 
-The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand).
+The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand). `replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 The `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces any matching regex pattern with the hash value of `replacement`.
 
@@ -280,7 +313,8 @@ Examples:
 - `replace_all_patterns(attributes, "value", "/account/\\d{4}", "/account/{accountId}")`
 - `replace_all_patterns(attributes, "key", "/account/\\d{4}", "/account/{accountId}")`
 - `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "k8s.$$1.")`
-- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "k8s.$$1.", SHA256)`
+- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "$$1.")`
+- `replace_all_patterns(attributes, "key", "^kube_([0-9A-Za-z]+_)", "$$1.", SHA256, "k8s.%s")`
 
 Note that when using OTTL within the collector's configuration file, `$` must be escaped to `$$` to bypass
 environment variable substitution logic. To input a literal `$` from the configuration file, use `$$$`.
@@ -288,11 +322,12 @@ If using OTTL outside of collector configuration, `$` should not be escaped and 
 
 ### replace_match
 
-`replace_match(target, pattern, replacement, Optional[function])`
+`replace_match(target, pattern, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_match` function allows replacing entire strings if they match a glob pattern.
 
 `target` is a path expression to a telemetry field. `pattern` is a string following [filepath.Match syntax](https://pkg.go.dev/path/filepath#Match). `replacement` is either a path expression to a string telemetry field or a literal string.
+`replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
 If `target` matches `pattern` it will get replaced with `replacement`.
 
@@ -301,11 +336,11 @@ The `function` is an optional argument that can take in any Converter that accep
 Examples:
 
 - `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}")`
-- `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256)`
+- `replace_match(attributes["http.target"], "/user/*/list/*", "/user/{userId}/list/{listId}", SHA256, "/user/%s")`
 
 ### replace_pattern
 
-`replace_pattern(target, regex, replacement, Optional[function])`
+`replace_pattern(target, regex, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_pattern` function allows replacing all string sections that match a regex pattern with a new value.
 
@@ -313,7 +348,7 @@ The `replace_pattern` function allows replacing all string sections that match a
 
 If one or more sections of `target` match `regex` they will get replaced with `replacement`.
 
-The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand).
+The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand). `replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported
 
 The `function` is an optional argument that can take in any Converter that accepts a (`replacement`) string and returns a string. An example is a hash function that replaces a matching regex pattern with the hash value of `replacement`.
 
@@ -321,7 +356,7 @@ Examples:
 
 - `replace_pattern(resource.attributes["process.command_line"], "password\\=[^\\s]*(\\s?)", "password=***")`
 - `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "k8s.$$1.")`
-- `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "k8s.$$1.", SHA256)`
+- `replace_pattern(name, "^kube_([0-9A-Za-z]+_)", "$$1.", SHA256, "k8s.%s")`
 
 Note that when using OTTL within the collector's configuration file, `$` must be escaped to `$$` to bypass
 environment variable substitution logic. To input a literal `$` from the configuration file, use `$$$`.
@@ -374,50 +409,108 @@ Unlike functions, they do not modify any input telemetry and always return a val
 
 Available Converters:
 
+- [Base64Decode](#base64decode)
+- [Decode](#decode)
 - [Concat](#concat)
 - [ConvertCase](#convertcase)
-- [ExtractPatterns](#extractpatterns)
-- [FNV](#fnv)
-- [Hour](#hour)
-- [Hours](#hours)
+- [Day](#day)
 - [Double](#double)
 - [Duration](#duration)
+- [ExtractPatterns](#extractpatterns)
+- [ExtractGrokPatterns](#extractgrokpatterns)
+- [FNV](#fnv)
+- [Format](#format)
+- [GetXML](#getxml)
+- [Hex](#hex)
+- [Hour](#hour)
+- [Hours](#hours)
+- [InsertXML](#insertxml)
 - [Int](#int)
 - [IsBool](#isbool)
 - [IsDouble](#isdouble)
+- [IsInt](#isint)
+- [IsRootSpan](#isrootspan)
 - [IsMap](#ismap)
 - [IsMatch](#ismatch)
+- [IsList](#islist)
 - [IsString](#isstring)
 - [Len](#len)
 - [Log](#log)
+- [MD5](#md5)
 - [Microseconds](#microseconds)
 - [Milliseconds](#milliseconds)
+- [Minute](#minute)
 - [Minutes](#minutes)
+- [Month](#month)
 - [Nanoseconds](#nanoseconds)
 - [Now](#now)
+- [ParseCSV](#parsecsv)
 - [ParseJSON](#parsejson)
+- [ParseKeyValue](#parsekeyvalue)
+- [ParseXML](#parsexml)
+- [RemoveXML](#removexml)
 - [Seconds](#seconds)
 - [SHA1](#sha1)
 - [SHA256](#sha256)
+- [SHA512](#sha512)
+- [Sort](#sort)
 - [SpanID](#spanid)
 - [Split](#split)
+- [String](#string)
 - [Substring](#substring)
 - [Time](#time)
+- [ToKeyValueString](#tokeyvaluestring)
 - [TraceID](#traceid)
 - [TruncateTime](#truncatetime)
+- [Unix](#unix)
 - [UnixMicro](#unixmicro)
 - [UnixMilli](#unixmilli)
 - [UnixNano](#unixnano)
 - [UnixSeconds](#unixseconds)
+- [UserAgent](#useragent)
 - [UUID](#UUID)
+- [Year](#year)
+
+### Base64Decode (Deprecated)
+
+*This function has been deprecated. Please use the [Decode](#decode) function instead.*
+
+`Base64Decode(value)`
+
+The `Base64Decode` Converter takes a base64 encoded string and returns the decoded string.
+
+`value` is a valid base64 encoded string.
+
+Examples:
+
+- `Base64Decode("aGVsbG8gd29ybGQ=")`
+
+
+- `Base64Decode(attributes["encoded field"])`
+
+### Decode
+
+`Decode(value, encoding)`
+
+The `Decode` Converter takes a string or byte array encoded with the specified encoding and returns the decoded string.
+
+`value` is a valid encoded string or byte array.
+`encoding` is a valid encoding name included in the [IANA encoding index](https://www.iana.org/assignments/character-sets/character-sets.xhtml).
+
+Examples:
+
+- `Decode("aGVsbG8gd29ybGQ=", "base64")`
+
+
+- `Decode(attributes["encoded field"], "us-ascii")`
 
 ### Concat
 
 `Concat(values[], delimiter)`
 
-The `Concat` Converter takes a delimiter and a sequence of values and concatenates their string representation. Unsupported values, such as lists or maps that may substantially increase payload size, are not added to the resulting string.
+The `Concat` Converter takes a sequence of values and a delimiter and concatenates their string representation. Unsupported values, such as lists or maps that may substantially increase payload size, are not added to the resulting string.
 
-`values` is a list of values passed as arguments. It supports paths, primitive values, and byte slices (such as trace IDs or span IDs).
+`values` is a list of values. It supports paths, primitive values, and byte slices (such as trace IDs or span IDs).
 
 `delimiter` is a string value that is placed between strings during concatenation. If no delimiter is desired, then simply pass an empty string.
 
@@ -453,6 +546,20 @@ If `toCase` is any value other than the options above, the `ConvertCase` Convert
 Examples:
 
 - `ConvertCase(metric.name, "snake")`
+
+### Day
+
+`Day(value)`
+
+The `Day` Converter returns the day component from the specified time using the Go stdlib [`time.Day` function](https://pkg.go.dev/time#Time.Day).
+
+`value` is a `time.Time`. If `value` is another type, an error is returned.
+
+The returned type is `int64`.
+
+Examples:
+
+- `Day(Now())`
 
 ### Double
 
@@ -509,6 +616,97 @@ Examples:
 
 - `ExtractPatterns(body, "^(?P<timestamp>\\w+ \\w+ [0-9]+:[0-9]+:[0-9]+) (?P<hostname>([A-Za-z0-9-_]+)) (?P<process>\\w+)(\\[(?P<pid>\\d+)\\])?: (?P<message>.*)$")`
 
+### ExtractGrokPatterns
+
+`ExtractGrokPatterns(target, pattern, Optional[namedCapturesOnly], Optional[patternDefinitions])`
+
+The `ExtractGrokPatterns` Converter parses unstructured data into a format that is structured and queryable. 
+It returns a `pcommon.Map` struct that is a result of extracting named capture groups from the target string. If no matches are found then an empty `pcommon.Map` is returned.
+
+- `target` is a Getter that returns a string. 
+- `pattern` is a grok pattern string. 
+- `namedCapturesOnly` (optional) specifies if non-named captures should be returned. 
+- `patternDefinitions` (optional) is a list of custom pattern definition strings used inside `pattern` in the form of `PATTERN_NAME=PATTERN`. 
+This parameter lets you define your own custom patterns to improve readability when the extracted `pattern` is not part of the default set or when you need custom naming. 
+
+If `target` is not a string or nil `ExtractGrokPatterns` returns an error. If `pattern` does not contain at least 1 named capture group and `namedCapturesOnly` is set to `true` then `ExtractPatterns` errors on startup.
+
+Parsing is done using [Elastic Go-Grok](https://github.com/elastic/go-grok?tab=readme-ov-file) library.
+Grok is a regular expression dialect that supports reusable aliased expressions. It sits on `re2` regex library so any valid `re2` expressions are valid in grok.
+Grok uses this regular expression language to allow naming existing patterns and combining them into more complex patterns that match your fields
+
+Pattern can be specified in either of these forms:
+ - `%{SYNTAX}` - e.g {NUMBER}
+ - `%{SYNTAX:ID}` - e.g {NUMBER:MY_AGE}
+ - `%{SYNTAX:ID:TYPE}` - e.g {NUMBER:MY_AGE:INT}
+
+Where `SYNTAX` is a pattern that will match your text, `ID` is identifier you give to the piece of text being matched and `TYPE` data type you want to cast your named field.
+Supported types are `int`, `long`, `double`, `float` and boolean
+
+The [Elastic Go-Grok](https://github.com/elastic/go-grok) ships with numerous predefined grok patterns that simplify working with grok.
+In collector Complete set is included consisting of a default set and all additional sets adding product/tool specific capabilities (like [aws](https://github.com/elastic/go-grok/blob/main/patterns/aws.go) or [java](https://github.com/elastic/go-grok/blob/main/patterns/java.go) patterns).
+
+
+Default set consists of:
+
+| Name | Example |
+|-----|-----|
+| WORD |  "hello", "world123", "test_data" |
+| NOTSPACE | "example", "text-with-dashes", "12345" |
+| SPACE | " ", "\t", "  " |
+| INT | "123", "-456", "+789" |
+| NUMBER | "123", "456.789", "-0.123" |
+| BOOL |"true", "false", "true" |
+| BASE10NUM | "123", "-123.456", "0.789" |
+| BASE16NUM | "1a2b", "0x1A2B", "-0x1a2b3c" |
+| BASE16FLOAT |  "0x1.a2b3", "-0x1A2B3C.D" |
+| POSINT | "123", "456", "789" |
+| NONNEGINT | "0", "123", "456" |
+| GREEDYDATA |"anything goes", "literally anything", "123 #@!" |
+| QUOTEDSTRING | "\"This is a quote\"", "'single quoted'" |
+| UUID |"123e4567-e89b-12d3-a456-426614174000" |
+| URN | "urn:isbn:0451450523", "urn:ietf:rfc:2648" |
+
+and many more. Complete list can be found [here](https://github.com/elastic/go-grok/blob/main/patterns/default.go).
+
+Examples:
+
+- _Uses regex pattern with named captures to extract_:
+
+  `ExtractGrokPatterns(attributes["k8s.change_cause"], "GIT_SHA=(?P<git.sha>\w+)")`
+
+- _Uses regex pattern with named captures to extract_:
+
+  `ExtractGrokPatterns(body, "^(?P<timestamp>\\w+ \\w+ [0-9]+:[0-9]+:[0-9]+) (?P<hostname>([A-Za-z0-9-_]+)) (?P<process>\\w+)(\\[(?P<pid>\\d+)\\])?: (?P<message>.*)$")`
+
+- _Uses `URI` from default set to extract URI and includes only named captures_:
+
+  `ExtractGrokPatterns(body, "%{URI}", true)`
+
+- _Uses more complex pattern consisting of elements from default set and includes only named captures_:
+  
+  `ExtractGrokPatterns(body, "%{DATESTAMP:timestamp} %{TZ:event.timezone} %{DATA:user.name} %{GREEDYDATA:postgresql.log.connection_id} %{POSINT:process.pid:int}", true)`
+
+- _Uses `LOGLINE` pattern defined in `patternDefinitions` passed as last argument_:
+  
+  `ExtractGrokPatterns(body, "%{LOGLINE}", true, ["LOGLINE=%{DATESTAMP:timestamp} %{TZ:event.timezone} %{DATA:user.name} %{GREEDYDATA:postgresql.log.connection_id} %{POSINT:process.pid:int}"])`
+
+- Add custom patterns to parse the password from `/etc/passwd` and making `pattern` readable:
+
+  - `pattern`: `%{USERNAME:user.name}:%{PASSWORD:user.password}:%{USERINFO}`
+  - `patternDefinitions`:
+    - `PASSWORD=%{WORD}`
+    - `USERINFO=%{GREEDYDATA}`
+
+    Note that `USERNAME` is in the default pattern set and does not need to be redefined.
+
+  - Target: `smith:pass123:1001:1000:J Smith,1234,(234)567-8910,(234)567-1098,email:/home/smith:/bin/sh` 
+
+  - Return values: 
+     - `user.name`: smith
+     - `user.password`: pass123
+
+
 ### FNV
 
 `FNV(value)`
@@ -527,6 +725,83 @@ Examples:
 
 
 - `FNV("name")`
+
+### Format
+
+```Format(formatString, []formatArguments)```
+
+The `Format` Converter takes the given format string and formats it using `fmt.Sprintf` and the given arguments.
+
+`formatString` is a string. `formatArguments` is an array of values.
+
+If the `formatString` is not a string or does not exist, the `Format` Converter will return an error.
+If any of the `formatArgs` are incorrect (e.g. missing, or an incorrect type for the corresponding format specifier), then a string will still be returned, but with Go's default error handling for `fmt.Sprintf`.
+
+Format specifiers that can be used in `formatString` are documented in Go's [fmt package documentation](https://pkg.go.dev/fmt#hdr-Printing)
+
+Examples:
+
+- `Format("%02d", [attributes["priority"]])`
+- `Format("%04d-%02d-%02d", [Year(Now()), Month(Now()), Day(Now())])`
+- `Format("%s/%s/%04d-%02d-%02d.log", [attributes["hostname"], body["program"], Year(Now()), Month(Now()), Day(Now())])`
+
+
+### GetXML
+
+`GetXML(target, xpath)`
+
+The `GetXML` Converter returns an XML string with selected elements.
+
+`target` is a Getter that returns a string. This string should be in XML format.
+If `target` is not a string, nil, or is not valid xml, `GetXML` will return an error.
+
+`xpath` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
+selects one or more elements. Currently, this converter only supports selecting elements.
+
+Examples:
+
+Get all elements at the root of the document with tag "a"
+
+- `GetXML(body, "/a")`
+
+Gel all elements anywhere in the document with tag "a"
+
+- `GetXML(body, "//a")`
+
+Get the first element at the root of the document with tag "a"
+
+- `GetXML(body, "/a[1]")`
+
+Get all elements in the document with tag "a" that have an attribute "b" with value "c"
+
+- `GetXML(body, "//a[@b='c']")`
+
+### Hex
+
+`Hex(value)`
+
+The `Hex` converter converts the `value` to its hexadecimal representation.
+
+The returned type is string representation of the hexadecimal value.
+
+The input `value` types:
+
+- float64 (`1.1` will result to `0x3ff199999999999a`)
+- string (`"1"` will result in `0x31`)
+- bool (`true` will result in `0x01`; `false` to `0x00`)
+- int64 (`12` will result in `0xC`)
+- []byte (without any changes - `0x02` will result to `0x02`)
+
+If `value` is another type or parsing failed nil is always returned.
+
+The `value` is either a path expression to a telemetry field to retrieve or a literal.
+
+Examples:
+
+- `Hex(attributes["http.status_code"])`
+
+
+- `Hex(2.0)`
 
 ### Hour
 
@@ -555,6 +830,35 @@ The returned type is `float64`.
 Examples:
 
 - `Hours(Duration("1h"))`
+
+### InsertXML
+
+`InsertXML(target, xpath, value)`
+
+The `InsertXML` Converter returns an edited version of an XML string with child elements added to selected elements.
+
+`target` is a Getter that returns a string. This string should be in XML format and represents the document which will
+be modified. If `target` is not a string, nil, or is not valid xml, `InsertXML` will return an error.
+
+`xpath` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
+selects one or more elements.
+
+`value` is a Getter that returns a string. This string should be in XML format and represents the document which will
+be inserted into `target`. If `value` is not a string, nil, or is not valid xml, `InsertXML` will return an error.
+
+Examples:
+
+Add an element "foo" to the root of the document
+
+- `InsertXML(body, "/", "<foo/>")`
+
+Add an element "bar" to any element called "foo"
+
+- `InsertXML(body, "//foo", "<bar/>")`
+
+Fetch and insert an xml document into another
+
+- `InsertXML(body, "/subdoc", attributes["subdoc"])`
 
 ### Int
 
@@ -624,6 +928,39 @@ Examples:
 
 - `IsDouble(attributes["maybe a double"])`
 
+### IsInt
+
+`IsInt(value)`
+
+The `IsInt` Converter returns true if the given value is a int.
+
+The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+
+If `value` is a `int64` or a `pcommon.ValueTypeInt` then returns `true`, otherwise returns `false`.
+
+Examples:
+
+- `IsInt(body)`
+
+- `IsInt(attributes["maybe a int"])`
+
+### IsRootSpan
+
+`IsRootSpan()`
+
+The `IsRootSpan` Converter returns `true` if the span in the corresponding context is root, which means
+its `parent_span_id` is equal to hexadecimal representation of zero.
+
+This function is supported with [OTTL span context](../contexts/ottlspan/README.md). In any other context it is not supported.
+
+The function returns `false` in all other scenarios, including `parent_span_id == ""` or `parent_span_id == nil`.
+
+Examples:
+
+- `IsRootSpan()`
+
+- `set(attributes["isRoot"], "true") where IsRootSpan()`
+
 ### IsMap
 
 `IsMap(value)`
@@ -666,6 +1003,22 @@ Examples:
 
 
 - `IsMatch("string", ".*ring")`
+
+### IsList
+
+`IsList(value)`
+
+The `IsList` Converter returns true if the given value is a list.
+
+The `value` is either a path expression to a telemetry field to retrieve or a literal.
+
+If `value` is a `list`, `pcommon.ValueTypeSlice`. `pcommon.Slice`, or any other list type, then returns `true`, otherwise returns `false`.
+
+Examples:
+
+- `IsList(body)`
+
+- `IsList(attributes["maybe a slice"])`
 
 ### IsString
 
@@ -723,6 +1076,26 @@ Examples:
 
 - `Int(Log(attributes["duration_ms"])`
 
+### MD5
+
+`MD5(value)`
+
+The `MD5` Converter converts the `value` to a md5 hash/digest.
+
+The returned type is string.
+
+`value` is either a path expression to a string telemetry field or a literal string. If `value` is another type an error is returned.
+
+If an error occurs during hashing it will be returned.
+
+Examples:
+
+- `MD5(attributes["device.name"])`
+
+- `MD5("name")`
+
+**Note:** According to the National Institute of Standards and Technology (NIST), MD5 is no longer a recommended hash function. It should be avoided except when required for compatibility. New uses should prefer a SHA-2 family function (e.g. SHA-256, SHA-512) whenever possible.
+
 ### Microseconds
 
 `Microseconds(value)`
@@ -751,6 +1124,20 @@ Examples:
 
 - `Milliseconds(Duration("1h"))`
 
+### Minute
+
+`Minute(value)`
+
+The `Minute` Converter returns the minute component from the specified time using the Go stdlib [`time.Minute` function](https://pkg.go.dev/time#Time.Minute).
+
+`value` is a `time.Time`. If `value` is another type, an error is returned.
+
+The returned type is `int64`.
+
+Examples:
+
+- `Minute(Now())`
+
 ### Minutes
 
 `Minutes(value)`
@@ -764,6 +1151,20 @@ The returned type is `float64`.
 Examples:
 
 - `Minutes(Duration("1h"))`
+
+### Month
+
+`Month(value)`
+
+The `Month` Converter returns the month component from the specified time using the Go stdlib [`time.Month` function](https://pkg.go.dev/time#Time.Month).
+
+`value` is a `time.Time`. If `value` is another type, an error is returned.
+
+The returned type is `int64`.
+
+Examples:
+
+- `Month(Now())`
 
 ### Nanoseconds
 
@@ -792,11 +1193,43 @@ Examples:
 - `UnixSeconds(Now())`
 - `set(start_time, Now())`
 
+### ParseCSV
+
+`ParseCSV(target, headers, Optional[delimiter], Optional[headerDelimiter], Optional[mode])`
+
+The `ParseCSV` Converter returns a `pcommon.Map` struct that contains the result of parsing the `target` string as CSV. The resultant map is structured such that it is a mapping of field name -> field value.
+
+`target` is a Getter that returns a string. This string should be a CSV row. if `target` is not a properly formatted CSV row, or if the number of fields in `target` does not match the number of fields in `headers`, `ParseCSV` will return an error. Leading and trailing newlines in `target` will be stripped. Newlines elswhere in `target` are not treated as row delimiters during parsing, and will be treated as though they are part of the field that are placed in.
+
+`headers` is a Getter that returns a string. This string should be a CSV header, specifying the names of the CSV fields.
+
+`delimiter` is an optional string parameter that specifies the delimiter used to split `target` into fields. By default, it is set to `,`.
+
+`headerDelimiter` is an optional string parameter that specified the delimiter used to split `headers` into fields. By default, it is set to the value of `delimiter`.
+
+`mode` is an optional string paramater that specifies the parsing mode. Valid values are `strict`, `lazyQuotes`, and `ignoreQuotes`. By default, it is set to `strict`.
+- The `strict` mode provides typical CSV parsing.
+- The `lazyQotes` mode provides a relaxed version of CSV parsing where a quote may appear in the middle of a unquoted field.
+- The `ignoreQuotes` mode completely ignores any quoting rules for CSV and just splits the row on the delimiter.
+
+Examples:
+
+- `ParseCSV("999-999-9999,Joe Smith,joe.smith@example.com", "phone,name,email")`
+
+
+- `ParseCSV(body, "phone|name|email", delimiter="|")`
+
+
+- `ParseCSV(attributes["csv_line"], attributes["csv_headers"], delimiter="|", headerDelimiter=",", mode="lazyQuotes")`
+
+
+- `ParseCSV("\"555-555-5556,Joe Smith\",joe.smith@example.com", "phone,name,email", mode="ignoreQuotes")`
+
 ### ParseJSON
 
 `ParseJSON(target)`
 
-The `ParseJSON` Converter returns a `pcommon.Map` struct that is a result of parsing the target string as JSON
+The `ParseJSON` Converter returns a `pcommon.Map` or `pcommon.Slice` struct that is a result of parsing the target string as JSON
 
 `target` is a Getter that returns a string. This string should be in json format.
 If `target` is not a string, nil, or cannot be parsed as JSON, `ParseJSON` will return an error.
@@ -818,10 +1251,168 @@ Examples:
 - `ParseJSON("{\"attr\":true}")`
 
 
+- `ParseJSON("[\"attr1\",\"attr2\"]")`
+
+
 - `ParseJSON(attributes["kubernetes"])`
 
 
 - `ParseJSON(body)`
+
+### ParseKeyValue
+
+`ParseKeyValue(target, Optional[delimiter], Optional[pair_delimiter])`
+
+The `ParseKeyValue` Converter returns a `pcommon.Map` that is a result of parsing the target string for key value pairs.
+
+`target` is a Getter that returns a string. If the returned string is empty, an error will be returned. `delimiter` is an optional string that is used to split the key and value in a pair, the default is `=`. `pair_delimiter` is an optional string that is used to split key value pairs, the default is a single space (` `).
+
+For example, the following target `"k1=v1 k2=v2 k3=v3"` will use default delimiters and be parsed into the following map:
+```
+{ "k1": "v1", "k2": "v2", "k3": "v3" }
+```
+
+Examples:
+
+- `ParseKeyValue("k1=v1 k2=v2 k3=v3")`
+- `ParseKeyValue("k1!v1_k2!v2_k3!v3", "!", "_")`
+- `ParseKeyValue(attributes["pairs"])`
+
+
+### ParseXML
+
+`ParseXML(target)`
+
+The `ParseXML` Converter returns a `pcommon.Map` struct that is the result of parsing the target string as an XML document.
+
+`target` is a Getter that returns a string. This string should be in XML format.
+If `target` is not a string, nil, or cannot be parsed as XML, `ParseXML` will return an error.
+
+Unmarshalling XML is done using the following rules:
+1. All character data for an XML element is trimmed, joined, and placed into the `content` field.
+2. The tag for an XML element is trimmed, and placed into the `tag` field.
+3. The attributes for an XML element is placed as a `pcommon.Map` into the `attribute` field.
+4. Processing instructions, directives, and comments are ignored and not represented in the resultant map.
+5. All child elements are parsed as above, and placed in a `pcommon.Slice`, which is then placed into the `children` field.
+
+For example, the following XML document:
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<Log>
+  <User>
+    <ID>00001</ID>
+    <Name type="first">Joe</Name>
+    <Email>joe.smith@example.com</Email>
+  </User>
+  <Text>User fired alert A</Text>
+</Log>
+```
+
+will be parsed as:
+```json
+{
+  "tag": "Log",
+  "children": [
+    {
+      "tag": "User",
+      "children": [
+        {
+          "tag": "ID",
+          "content": "00001"
+        },
+        {
+          "tag": "Name",
+          "content": "Joe",
+          "attributes": {
+            "type": "first"
+          }
+        },
+        {
+          "tag": "Email",
+          "content": "joe.smith@example.com"
+        }
+      ]
+    },
+    {
+      "tag": "Text",
+      "content": "User fired alert A"
+    }
+  ]
+}
+```
+
+Examples:
+
+- `ParseXML(body)`
+
+- `ParseXML(attributes["xml"])`
+
+- `ParseXML("<HostInfo hostname=\"example.com\" zone=\"east-1\" cloudprovider=\"aws\" />")`
+
+### RemoveXML
+
+`RemoveXML(target, xpath)`
+
+The `RemoveXML` Converter returns an edited version of an XML string with selected elements removed.
+
+`target` is a Getter that returns a string. This string should be in XML format.
+If `target` is not a string, nil, or is not valid xml, `RemoveXML` will return an error.
+
+`xpath` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
+selects one or more elements to remove from the XML document.
+
+For example, the XPath `/Log/Record[./Name/@type="archive"]` applied to the following XML document:
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<Log>
+  <Record>
+    <ID>00001</ID>
+    <Name type="archive"></Name>
+    <Data>Some data</Data>
+  </Record>
+  <Record>
+    <ID>00002</ID>
+    <Name type="user"></Name>
+    <Data>Some data</Data>
+  </Record>
+</Log>
+```
+
+will return:
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<Log>
+  <Record>
+    <ID>00002</ID>
+    <Name type="user"></Name>
+    <Data>Some data</Data>
+  </Record>
+</Log>
+```
+
+Examples:
+
+Delete the attribute "foo" from the elements with tag "a"
+
+- `RemoveXML(body, "/a/@foo")`
+
+Delete all elements with tag "b" that are children of elements with tag "a"
+
+- `RemoveXML(body, "/a/b")`
+
+Delete all elements with tag "b" that are children of elements with tag "a" and have the attribute "foo" with value "bar"
+
+- `RemoveXML(body, "/a/b[@foo='bar']")`
+
+Delete all comments
+
+- `RemoveXML(body, "//comment()")`
+
+Delete text from nodes that contain the word "sensitive"
+
+- `RemoveXML(body, "//*[contains(text(), 'sensitive')]")`
 
 ### Seconds
 
@@ -856,7 +1447,7 @@ Examples:
 
 - `SHA1("name")`
 
-**Note:** According to the National Institute of Standards and Technology (NIST), SHA1 is no longer a recommended hash function. It should be avoided except when required for compatibility. New uses should prefer FNV whenever possible.
+**Note:** [According to the National Institute of Standards and Technology (NIST)](https://csrc.nist.gov/projects/hash-functions), SHA1 is no longer a recommended hash function. It should be avoided except when required for compatibility. New uses should prefer a SHA-2 family function (such as SHA-256 or SHA-512) whenever possible.
 
 ### SHA256
 
@@ -874,10 +1465,52 @@ Examples:
 
 - `SHA256(attributes["device.name"])`
 
-
 - `SHA256("name")`
 
-**Note:** According to the National Institute of Standards and Technology (NIST), SHA256 is no longer a recommended hash function. It should be avoided except when required for compatibility. New uses should prefer FNV whenever possible.
+### SHA512
+
+`SHA512(input)`
+
+The `SHA512` converter calculates sha512 hash value/digest of the `input`.
+
+The returned type is string.
+
+`input` is either a path expression to a string telemetry field or a literal string. If `input` is another type, converter raises an error.
+If an error occurs during hashing, the error will be returned.
+
+Examples:
+
+- `SHA512(attributes["device.name"])`
+
+- `SHA512("name")`
+
+### Sort
+
+`Sort(target, Optional[order])`
+
+The `Sort` Converter sorts the `target` array in either ascending or descending order.
+
+`target` is an array or `pcommon.Slice` typed field containing the elements to be sorted. 
+
+`order` is a string specifying the sort order. Must be either `asc` or `desc`. The default value is `asc`.
+
+The Sort Converter preserves the data type of the original elements while sorting. 
+The behavior varies based on the types of elements in the target slice:
+
+| Element Types | Sorting Behavior                    | Return Value |
+|---------------|-------------------------------------|--------------|
+| Integers | Sorts as integers                   | Sorted array of integers |
+| Doubles | Sorts as doubles                    | Sorted array of doubles |
+| Integers and doubles | Converts all to doubles, then sorts | Sorted array of integers and doubles |
+| Strings | Sorts as strings                    | Sorted array of strings |
+| Booleans | Converts all to strings, then sorts | Sorted array of booleans |
+| Mix of integers, doubles, booleans, and strings | Converts all to strings, then sorts | Sorted array of mixed types |
+| Any other types | N/A                                 | Returns an error |
+
+Examples:
+
+- `Sort(attributes["device.tags"])`
+- `Sort(attributes["device.tags"], "desc")`
 
 ### SpanID
 
@@ -905,6 +1538,33 @@ Examples:
 
 - `Split("A|B|C", "|")`
 
+### String
+
+`String(value)`
+
+The `String` Converter converts the `value` to string type.
+
+The returned type is `string`.
+
+- string. The function returns the `value` without changes.
+- []byte. The function returns the `value` as a string encoded in hexadecimal.
+- map. The function returns the `value` as a key-value-pair of type string.
+- slice. The function returns the `value` as a list formatted string.
+- pcommon.Value. The function returns the `value` as a string type.
+
+If `value` is of another type it gets marshalled to string type.
+If `value` is empty, or parsing failed, nil is always returned.
+
+The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+
+Examples:
+
+- `String("test")`
+- `String(attributes["http.method"])`
+- `String(span_id)`
+- `String([1,2,3])`
+- `String(false)`
+
 ### Substring
 
 `Substring(target, start, length)`
@@ -922,15 +1582,122 @@ Examples:
 
 ### Time
 
+`Time(target, format, Optional[location], Optional[locale])`
+
 The `Time` Converter takes a string representation of a time and converts it to a Golang `time.Time`.
 
-`time` is a string. `format` is a string.
+`target` is a string. `format` is a string, `location` is an optional string, `locale` is an optional string.
 
-If either `time` or `format` are nil, an error is returned. The parser used is the parser at [internal/coreinternal/parser](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/internal/coreinternal/timeutils). If the time and format do not follow the parsing rules used by this parser, an error is returned.
+If either `target` or `format` are nil, an error is returned. The parser used is the parser at [internal/coreinternal/parser](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/internal/coreinternal/timeutils). If the `target` and `format` do not follow the parsing rules used by this parser, an error is returned.
+
+`format` denotes a textual representation of the time value formatted according to ctime-like format string. It follows [standard Go Layout formatting](https://pkg.go.dev/time#pkg-constants) with few additional substitutes:
+| substitution | description | examples |
+|-----|-----|-----|
+|`%Y` | Year as a zero-padded number | 0001, 0002, ..., 2019, 2020, ..., 9999 |
+|`%y` | Year, last two digits as a zero-padded number | 01, ..., 99 |
+|`%m` | Month as a zero-padded number | 01, 02, ..., 12 |
+|`%o` | Month as a space-padded number | 1, 2, ..., 12 |
+|`%q` | Month as an unpadded number | 1,2,...,12 |
+|`%b`, `%h` | Abbreviated month name | Jan, Feb, ... |
+|`%B` | Full month name | January, February, ... |
+|`%d` | Day of the month as a zero-padded number | 01, 02, ..., 31 |
+|`%e` | Day of the month as a space-padded number| 1, 2, ..., 31 |
+|`%g` | Day of the month as a unpadded number | 1,2,...,31 |
+|`%a` | Abbreviated weekday name | Sun, Mon, ... |
+|`%A` | Full weekday name | Sunday, Monday, ... |
+|`%H` | Hour (24-hour clock) as a zero-padded number | 00, ..., 24 |
+|`%I` | Hour (12-hour clock) as a zero-padded number | 00, ..., 12 |
+|`%l` | Hour 12-hour clock | 0, ..., 24 |
+|`%p` | Locale’s equivalent of either AM or PM | AM, PM |
+|`%P` | Locale’s equivalent of either am or pm | am, pm |
+|`%M` | Minute as a zero-padded number | 00, 01, ..., 59 |
+|`%S` | Second as a zero-padded number | 00, 01, ..., 59 |
+|`%L` | Millisecond as a zero-padded number | 000, 001, ..., 999 |
+|`%f` | Microsecond as a zero-padded number | 000000, ..., 999999 |
+|`%s` | Nanosecond as a zero-padded number | 00000000, ..., 99999999 |
+|`%z` | UTC offset in the form ±HHMM[SS[.ffffff]] or empty | +0000, -0400 |
+|`%Z` | Timezone name or abbreviation or empty | UTC, EST, CST |
+|`%i` | Timezone as +/-HH | -07 |
+|`%j` | Timezone as +/-HH:MM | -07:00 |
+|`%k` | Timezone as +/-HH:MM:SS | -07:00:00 |
+|`%w` | Timezone as +/-HHMMSS | -070000 |
+|`%D`, `%x` | Short MM/DD/YYYY date, equivalent to %m/%d/%y | 01/21/2031 |
+|`%F` | Short YYYY-MM-DD date, equivalent to %Y-%m-%d | 2031-01-21 |
+|`%T`,`%X` | ISO 8601 time format (HH:MM:SS), equivalent to %H:%M:%S | 02:55:02 |
+|`%r` | 12-hour clock time | 02:55:02 pm |
+|`%R` | 24-hour HH:MM time, equivalent to %H:%M | 13:55 |
+|`%n` | New-line character ('\n') | |
+|`%t` | Horizontal-tab character ('\t') | |
+|`%%` | A % sign | |
+|`%c` | Date and time representation | Mon Jan 02 15:04:05 2006 |
+
+`location` specifies a default time zone canonical ID to be used for date parsing in case it is not part of `format`.
+
+When loading `location`, this function will look for the IANA Time Zone database in the following locations in order:
+- a directory or uncompressed zip file named by the ZONEINFO environment variable
+- on a Unix system, the system standard installation location
+- $GOROOT/lib/time/zoneinfo.zip
+- the `time/tzdata` package, if it was imported. 
+
+When building a Collector binary, importing `time/tzdata` in any Go source file will bundle the database into the binary, which guarantees the lookups will work regardless of the setup on the host setup. Note this will add roughly 500kB to binary size.
 
 Examples:
 
 - `Time("02/04/2023", "%m/%d/%Y")`
+- `Time("Feb 15, 2023", "%b %d, %Y")`
+- `Time("2023-05-26 12:34:56 HST", "%Y-%m-%d %H:%M:%S %Z")`
+- `Time("1986-10-01T00:17:33 MST", "%Y-%m-%dT%H:%M:%S %Z")`
+- `Time("2012-11-01T22:08:41+0000 EST", "%Y-%m-%dT%H:%M:%S%z %Z")`
+- `Time("2023-05-26 12:34:56", "%Y-%m-%d %H:%M:%S", "America/New_York")`
+
+`locale` specifies the input language of the `target` value. It is used to interpret timestamp values written in a specific language, 
+ensuring that the function can correctly parse the localized month names, day names, and periods of the day based on the provided language.
+
+The value must be a well-formed BCP 47 language tag, and a known [CLDR](https://cldr.unicode.org) v45 locale.
+If not supplied, English (`en`) is used.
+
+Examples:
+
+- `Time("mercoledì set 4 2024", "%A %h %e %Y", "", "it")`
+- `Time("Febrero 25 lunes, 2002, 02:03:04 p.m.", "%B %d %A, %Y, %r", "America/New_York", "es-ES")`
+
+### ToKeyValueString
+
+`ToKeyValueString(target, Optional[delimiter], Optional[pair_delimiter], Optional[sort_output])`
+
+The `ToKeyValueString` Converter takes a `pcommon.Map` and converts it to a `string` of key value pairs.
+
+- `target` is a Getter that returns a `pcommon.Map`. 
+- `delimiter` is an optional string that is used to join keys and values, the default is `=`. 
+- `pair_delimiter` is an optional string that is used to join key value pairs, the default is a single space (` `).
+- `sort_output` is an optional bool that is used to deterministically sort the keys of the output string. It should only be used if the output is required to be in the same order each time, as it introduces some performance overhead. 
+
+For example, the following map `{"k1":"v1","k2":"v2","k3":"v3"}` will use default delimiters and be converted into the following string:
+
+```
+`k1=v1 k2=v2 k3=v3`
+```
+
+**Note:** Any nested arrays or maps will be represented as a JSON string. It is recommended to [flatten](#flatten) `target` before using this function. 
+
+For example, `{"k1":"v1","k2":{"k3":"v3","k4":["v4","v5"]}}` will be converted to:
+
+```
+`k1=v1 k2={\"k3\":\"v3\",\"k4\":[\"v4\",\"v5\"]}`
+```
+
+**Note:** If any keys or values contain either delimiter, they will be double quoted. If any double quotes are present in the quoted value, they will be escaped.
+
+For example, `{"k1":"v1","k2":"v=2","k3"="\"v=3\""}` will be converted to:
+
+```
+`k1=v1 k2="v=2" k3="\"v=3\""`
+```
+
+Examples:
+
+- `ToKeyValueString(body)`
+- `ToKeyValueString(body, ":", ",", true)`
 
 ### TraceID
 
@@ -957,6 +1724,21 @@ While some common paths can return a `time.Time` object, you will most like need
 Examples:
 
 - `TruncateTime(start_time, Duration("1s"))`
+
+### Unix
+
+`Unix(seconds, Optional[nanoseconds])`
+
+The `Unix` Converter returns an epoch timestamp as a Unix time. Similar to [Golang's Unix function](https://pkg.go.dev/time#Unix).
+
+`seconds` is `int64`. If `seconds` is another type an error is returned.
+`nanoseconds` is `int64`. It is optional and its default value is 0. If `nanoseconds` is another type an error is returned.
+
+The returned type is `time.Time`.
+
+Examples:
+
+- `Unix(1672527600)`
 
 ### UnixMicro
 
@@ -1014,11 +1796,91 @@ Examples:
 
 - `UnixSeconds(Time("02/04/2023", "%m/%d/%Y"))`
 
+### UserAgent
+
+`UserAgent(value)`
+
+The `UserAgent` Converter parses the string argument trying to match it against well-known user-agent strings.
+
+`value` is a string or a path to a string.  If `value` is not a string an error is returned.
+
+The results of the parsing are returned as a map containing `user_agent.name`, `user_agent.version` and `user_agent.original`
+as defined in semconv v1.25.0.
+
+Parsing is done using the [uap-go package](https://github.com/ua-parser/uap-go). The specific formats it recognizes can be found [here](https://github.com/ua-parser/uap-core/blob/master/regexes.yaml).
+
+Examples:
+
+- `UserAgent("curl/7.81.0")`
+  ```yaml
+  "user_agent.name": "curl"
+  "user_agent.version": "7.81.0"
+  "user_agent.original": "curl/7.81.0"
+  ```
+- `Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0`
+  ```yaml
+  "user_agent.name": "Firefox"
+  "user_agent.version": "126.0"
+  "user_agent.original": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"
+  ```
+
+### URL
+
+`URL(url_string)`
+
+Parses a Uniform Resource Locator (URL) string and extracts its components as an object.
+This URL object includes properties for the URL’s domain, path, fragment, port, query, scheme, user info, username, and password.
+
+`original`, `domain`, `scheme`, and `path` are always present. Other properties are present only if they have corresponding values.
+
+`url_string` is a `string`.
+
+- `URL("http://www.example.com")`
+
+results in 
+```
+  "url.original": "http://www.example.com",
+  "url.scheme":   "http",
+  "url.domain":   "www.example.com",
+  "url.path":     "",
+```
+
+- `URL("http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment")`
+
+results in 
+```
+  "url.path":      "/foo.gif",
+  "url.fragment":  "fragment",
+  "url.extension": "gif",
+  "url.password":  "mypassword",
+  "url.original":  "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment",
+  "url.scheme":    "http",
+  "url.port":      80,
+  "url.user_info": "myusername:mypassword",
+  "url.domain":    "www.example.com",
+  "url.query":     "key1=val1&key2=val2",
+  "url.username":  "myusername",
+```
+
 ### UUID
 
 `UUID()`
 
 The `UUID` function generates a v4 uuid string.
+
+### Year
+
+`Year(value)`
+
+The `Year` Converter returns the year component from the specified time using the Go stdlib [`time.Year` function](https://pkg.go.dev/time#Time.Year).
+
+`value` is a `time.Time`. If `value` is another type, an error is returned.
+
+The returned type is `int64`.
+
+Examples:
+
+- `Year(Now())`
 
 ## Function syntax
 
@@ -1030,3 +1892,24 @@ Functions should be named and formatted according to the following standards.
 - Functions that interact with multiple items MUST have plurality in the name. Ex: `truncate_all`, `keep_keys`, `replace_all_matches`.
 - Functions that interact with a single item MUST NOT have plurality in the name. If a function would interact with multiple items due to a condition, like `where`, it is still considered singular. Ex: `set`, `delete`, `replace_match`.
 - Functions that change a specific target MUST set the target as the first parameter.
+
+## Adding New Editors/Converters
+
+Before raising a PR with a new Editor or Converter, raise an issue to verify its acceptance. While acceptance is strongly specific to a specific use case, consider these guidelines for early assessment.
+
+Your proposal likely will be accepted if:
+- The proposed functionality is missing,
+- The proposed solution significantly improves user experience and readability for very common use cases,
+- The proposed solution is more performant in cases where it is possible to achieve the same result with existing options.
+
+It will be up for discussion if your proposal solves an issue that can be achieved in another way but does not improve user experience or performance.
+
+Your proposal likely won't be accepted if:
+- User experience is worse and assumes a highly technical user,
+- The performance of your proposal very negatively affects the processing pipeline.
+
+As with code, OTTL aims for readability first. This means:
+- Using short, meaningful, and descriptive names,
+- Ensuring naming consistency across Editors and Converters,
+- Avoiding deep nesting to achieve desired transformations,
+- Ensuring Editors and Converters have a single responsibility.

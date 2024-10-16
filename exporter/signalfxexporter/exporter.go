@@ -60,19 +60,18 @@ type signalfxExporter struct {
 	hostMetadataSyncer *hostmetadata.Syncer
 	converter          *translation.MetricsConverter
 	dimClient          *dimensions.DimensionClient
-	cancelFn           func()
 }
 
 // newSignalFxExporter returns a new SignalFx exporter.
 func newSignalFxExporter(
 	config *Config,
-	createSettings exporter.CreateSettings,
+	createSettings exporter.Settings,
 ) (*signalfxExporter, error) {
 	if config == nil {
 		return nil, errors.New("nil config")
 	}
 
-	metricTranslator, err := config.getMetricTranslator(createSettings.TelemetrySettings.Logger)
+	metricTranslator, err := config.getMetricTranslator(createSettings.TelemetrySettings.Logger, make(chan struct{}))
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +83,7 @@ func newSignalFxExporter(
 		config.IncludeMetrics,
 		config.NonAlphanumericDimensionChars,
 		config.DropHistogramBuckets,
+		!config.SendOTLPHistograms, // if SendOTLPHistograms is true, do not process histograms when converting to SFx
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric converter: %w", err)
@@ -99,13 +99,16 @@ func newSignalFxExporter(
 }
 
 func (se *signalfxExporter) start(ctx context.Context, host component.Host) (err error) {
+	if se.converter != nil {
+		se.converter.Start()
+	}
 	ingestURL, err := se.config.getIngestURL()
 	if err != nil {
 		return err
 	}
 
 	headers := buildHeaders(se.config, se.version)
-	client, err := se.createClient(host)
+	client, err := se.createClient(ctx, host)
 	if err != nil {
 		return err
 	}
@@ -121,14 +124,13 @@ func (se *signalfxExporter) start(ctx context.Context, host component.Host) (err
 		logger:                 se.logger,
 		accessTokenPassthrough: se.config.AccessTokenPassthrough,
 		converter:              se.converter,
+		sendOTLPHistograms:     se.config.SendOTLPHistograms,
 	}
 
-	apiTLSCfg, err := se.config.APITLSSettings.LoadTLSConfig()
+	apiTLSCfg, err := se.config.APITLSSettings.LoadTLSConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("could not load API TLS config: %w", err)
 	}
-	cancellable, cancelFn := context.WithCancel(ctx)
-	se.cancelFn = cancelFn
 
 	apiURL, err := se.config.getAPIURL()
 	if err != nil {
@@ -136,7 +138,6 @@ func (se *signalfxExporter) start(ctx context.Context, host component.Host) (err
 	}
 
 	dimClient := dimensions.NewDimensionClient(
-		cancellable,
 		dimensions.DimensionClientOptions{
 			Token:        se.config.AccessToken,
 			APIURL:       apiURL,
@@ -172,7 +173,7 @@ func newGzipPool() sync.Pool {
 	}}
 }
 
-func newEventExporter(config *Config, createSettings exporter.CreateSettings) (*signalfxExporter, error) {
+func newEventExporter(config *Config, createSettings exporter.Settings) (*signalfxExporter, error) {
 	if config == nil {
 		return nil, errors.New("nil config")
 	}
@@ -186,14 +187,14 @@ func newEventExporter(config *Config, createSettings exporter.CreateSettings) (*
 
 }
 
-func (se *signalfxExporter) startLogs(_ context.Context, host component.Host) error {
+func (se *signalfxExporter) startLogs(ctx context.Context, host component.Host) error {
 	ingestURL, err := se.config.getIngestURL()
 	if err != nil {
 		return err
 	}
 
 	headers := buildHeaders(se.config, se.version)
-	client, err := se.createClient(host)
+	client, err := se.createClient(ctx, host)
 	if err != nil {
 		return err
 	}
@@ -213,10 +214,10 @@ func (se *signalfxExporter) startLogs(_ context.Context, host component.Host) er
 	return nil
 }
 
-func (se *signalfxExporter) createClient(host component.Host) (*http.Client, error) {
+func (se *signalfxExporter) createClient(ctx context.Context, host component.Host) (*http.Client, error) {
 	se.config.ClientConfig.TLSSetting = se.config.IngestTLSSettings
 
-	return se.config.ToClient(host, se.telemetrySettings)
+	return se.config.ToClient(ctx, host, se.telemetrySettings)
 }
 
 func (se *signalfxExporter) pushMetrics(ctx context.Context, md pmetric.Metrics) error {
@@ -233,8 +234,12 @@ func (se *signalfxExporter) pushLogs(ctx context.Context, ld plog.Logs) error {
 }
 
 func (se *signalfxExporter) shutdown(_ context.Context) error {
-	if se.cancelFn != nil {
-		se.cancelFn()
+	if se.dimClient != nil {
+		se.dimClient.Shutdown()
+	}
+
+	if se.converter != nil {
+		se.converter.Shutdown()
 	}
 	return nil
 }

@@ -31,7 +31,7 @@ const (
 type observerHandler struct {
 	sync.Mutex
 	config *Config
-	params receiver.CreateSettings
+	params receiver.Settings
 	// receiversByEndpointID is a map of endpoint IDs to a receiver instance.
 	receiversByEndpointID receiverMap
 	// nextLogsConsumer is the receiver_creator's own consumer
@@ -103,6 +103,7 @@ func (obs *observerHandler) OnAdd(added []observer.Endpoint) {
 				obs.params.TelemetrySettings.Logger.Error("unable to resolve template config", zap.String("receiver", template.id.String()), zap.Error(err))
 				continue
 			}
+			obs.params.TelemetrySettings.Logger.Debug("resolved config", zap.String("receiver", template.id.String()), zap.Any("config", resolvedConfig))
 
 			discoveredCfg := userConfigMap{}
 			// If user didn't set endpoint set to default value as well as

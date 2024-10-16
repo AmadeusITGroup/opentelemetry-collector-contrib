@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	psnet "github.com/shirou/gopsutil/v3/net"
-	"github.com/shirou/gopsutil/v3/process"
+	psnet "github.com/shirou/gopsutil/v4/net"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -80,11 +80,11 @@ func TestHostObserver(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			hostPorts, notifier := tt.setup()
 			if tt.errorListingConnections {
-				require.Equal(t, len(notifier.endpointsMap), 0)
+				require.Empty(t, notifier.endpointsMap)
 				return
 			}
 
-			require.True(t, len(notifier.endpointsMap) >= len(hostPorts))
+			require.GreaterOrEqual(t, len(notifier.endpointsMap), len(hostPorts))
 
 			for _, hp := range hostPorts {
 				require.NoError(t, hp.err, "Failed to et host and port")
@@ -510,7 +510,7 @@ func TestCollectEndpoints(t *testing.T) {
 			newProc: func(pid int32) (*process.Process, error) {
 				return &process.Process{Pid: pid}, nil
 			},
-			procDetails: func(proc *process.Process) (*processDetails, error) {
+			procDetails: func(_ *process.Process) (*processDetails, error) {
 				return nil, errors.New("always fail")
 			},
 			want: []observer.Endpoint{},

@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -49,18 +50,14 @@ type zipkinReceiver struct {
 	protobufUnmarshaler      ptrace.Unmarshaler
 	protobufDebugUnmarshaler ptrace.Unmarshaler
 
-	settings  receiver.CreateSettings
+	settings  receiver.Settings
 	obsrecvrs map[string]*receiverhelper.ObsReport
 }
 
 var _ http.Handler = (*zipkinReceiver)(nil)
 
 // newReceiver creates a new zipkinReceiver reference.
-func newReceiver(config *Config, nextConsumer consumer.Traces, settings receiver.CreateSettings) (*zipkinReceiver, error) {
-	if nextConsumer == nil {
-		return nil, component.ErrNilNextConsumer
-	}
-
+func newReceiver(config *Config, nextConsumer consumer.Traces, settings receiver.Settings) (*zipkinReceiver, error) {
 	transports := []string{receiverTransportV1Thrift, receiverTransportV1JSON, receiverTransportV2JSON, receiverTransportV2PROTO}
 	obsrecvrs := make(map[string]*receiverhelper.ObsReport)
 	for _, transport := range transports {
@@ -90,19 +87,19 @@ func newReceiver(config *Config, nextConsumer consumer.Traces, settings receiver
 }
 
 // Start spins up the receiver's HTTP server and makes the receiver start its processing.
-func (zr *zipkinReceiver) Start(_ context.Context, host component.Host) error {
+func (zr *zipkinReceiver) Start(ctx context.Context, host component.Host) error {
 	if host == nil {
 		return errors.New("nil host")
 	}
 
 	var err error
-	zr.server, err = zr.config.ServerConfig.ToServer(host, zr.settings.TelemetrySettings, zr)
+	zr.server, err = zr.config.ServerConfig.ToServer(ctx, host, zr.settings.TelemetrySettings, zr)
 	if err != nil {
 		return err
 	}
 
 	var listener net.Listener
-	listener, err = zr.config.ServerConfig.ToListener()
+	listener, err = zr.config.ServerConfig.ToListener(ctx)
 	if err != nil {
 		return err
 	}
@@ -111,7 +108,7 @@ func (zr *zipkinReceiver) Start(_ context.Context, host component.Host) error {
 		defer zr.shutdownWG.Done()
 
 		if errHTTP := zr.server.Serve(listener); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
-			zr.settings.TelemetrySettings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 		}
 	}()
 

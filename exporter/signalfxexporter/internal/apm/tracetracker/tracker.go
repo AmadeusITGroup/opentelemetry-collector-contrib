@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/collector/semconv/v1.26.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/signalfxexporter/internal/apm/correlations"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/signalfxexporter/internal/apm/log"
@@ -162,7 +162,7 @@ func (a *ActiveServiceTracker) processEnvironment(res pcommon.Resource, now time
 					DimName:  dimName,
 					DimValue: dimValue,
 					Value:    environment,
-				}, func(cor *correlations.Correlation, err error) {
+				}, func(_ *correlations.Correlation, err error) {
 					if err == nil {
 						a.hostEnvironmentCache.UpdateOrCreate(&CacheKey{value: environment}, now)
 					}
@@ -191,7 +191,7 @@ func (a *ActiveServiceTracker) processEnvironment(res pcommon.Resource, now time
 					DimName:  dimName,
 					DimValue: val.Str(),
 					Value:    environment,
-				}, func(cor *correlations.Correlation, err error) {
+				}, func(_ *correlations.Correlation, err error) {
 					if err == nil {
 						a.tenantEnvironmentCache.UpdateOrCreate(&CacheKey{dimName: dimName, dimValue: val.Str()}, now)
 					}
@@ -221,7 +221,7 @@ func (a *ActiveServiceTracker) processService(res pcommon.Resource, now time.Tim
 					DimName:  dimName,
 					DimValue: dimValue,
 					Value:    service,
-				}, func(cor *correlations.Correlation, err error) {
+				}, func(_ *correlations.Correlation, err error) {
 					if err == nil {
 						a.hostServiceCache.UpdateOrCreate(&CacheKey{value: service}, now)
 					}
@@ -251,7 +251,7 @@ func (a *ActiveServiceTracker) processService(res pcommon.Resource, now time.Tim
 					DimName:  dimName,
 					DimValue: val.Str(),
 					Value:    service,
-				}, func(cor *correlations.Correlation, err error) {
+				}, func(_ *correlations.Correlation, err error) {
 					if err == nil {
 						a.tenantServiceCache.UpdateOrCreate(&CacheKey{dimName: dimName, dimValue: val.Str()}, now)
 					}
@@ -274,7 +274,7 @@ func (a *ActiveServiceTracker) Purge() {
 				DimName:  dimName,
 				DimValue: dimValue,
 				Value:    purged.value,
-			}, func(cor *correlations.Correlation) {
+			}, func(_ *correlations.Correlation) {
 				a.hostServiceCache.Delete(purged)
 			})
 		}
@@ -291,7 +291,7 @@ func (a *ActiveServiceTracker) Purge() {
 				DimName:  dimName,
 				DimValue: dimValue,
 				Value:    purged.value,
-			}, func(cor *correlations.Correlation) {
+			}, func(_ *correlations.Correlation) {
 				a.hostEnvironmentCache.Delete(purged)
 				a.log.WithFields(log.Fields{"environmentName": purged.value}).Debug("No longer tracking environment name from trace span")
 			})

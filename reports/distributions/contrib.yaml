@@ -5,6 +5,11 @@ components:
     connector:
         - count
         - datadog
+        - exceptions
+        - failover
+        - grafanacloud
+        - otlpjson
+        - roundrobin
         - routing
         - servicegraph
         - spanmetrics
@@ -23,16 +28,13 @@ components:
         - coralogix
         - datadog
         - dataset
-        - dynatrace
         - elasticsearch
-        - f5cloud
         - file
         - googlecloud
         - googlecloudpubsub
         - googlemanagedprometheus
         - honeycombmarker
         - influxdb
-        - instana
         - kafka
         - loadbalancing
         - logicmonitor
@@ -44,16 +46,17 @@ components:
         - prometheus
         - prometheusremotewrite
         - pulsar
+        - rabbitmq
         - sapm
         - sentry
         - signalfx
-        - skywalking
         - splunk_hec
         - sumologic
         - syslog
         - tencentcloud_logservice
         - zipkin
     extension:
+        - ack
         - asapclient
         - awsproxy
         - basicauth
@@ -66,19 +69,21 @@ components:
         - headers_setter
         - health_check
         - host_observer
-        - http_forwarder
         - jaegerremotesampling
         - k8s_observer
         - oauth2client
         - oidc
+        - opamp
         - pprof
         - sigv4auth
     processor:
         - attributes
         - cumulativetodelta
+        - deltatocumulative
         - deltatorate
         - experimental_metricsgeneration
         - filter
+        - geoip
         - groupbyattrs
         - groupbytrace
         - k8sattributes
@@ -90,7 +95,6 @@ components:
         - resourcedetection
         - routing
         - span
-        - spanmetrics
         - sumologic
         - tail_sampling
         - transform
@@ -122,6 +126,8 @@ components:
         - filestats
         - flinkmetrics
         - fluentforward
+        - github
+        - googlecloudmonitoring
         - googlecloudspanner
         - haproxy
         - hostmetrics

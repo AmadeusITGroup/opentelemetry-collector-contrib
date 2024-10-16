@@ -8,7 +8,6 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"google.golang.org/grpc"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen/internal/common"
 )
@@ -18,9 +17,6 @@ import (
 func grpcExporterOptions(cfg *Config) ([]otlptracegrpc.Option, error) {
 	grpcExpOpt := []otlptracegrpc.Option{
 		otlptracegrpc.WithEndpoint(cfg.Endpoint()),
-		otlptracegrpc.WithDialOption(
-			grpc.WithBlock(),
-		),
 	}
 
 	if cfg.Insecure {
@@ -34,7 +30,7 @@ func grpcExporterOptions(cfg *Config) ([]otlptracegrpc.Option, error) {
 	}
 
 	if len(cfg.Headers) > 0 {
-		grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(cfg.Headers))
+		grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithHeaders(cfg.GetHeaders()))
 	}
 
 	return grpcExpOpt, nil
@@ -59,7 +55,7 @@ func httpExporterOptions(cfg *Config) ([]otlptracehttp.Option, error) {
 	}
 
 	if len(cfg.Headers) > 0 {
-		httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(cfg.Headers))
+		httpExpOpt = append(httpExpOpt, otlptracehttp.WithHeaders(cfg.GetHeaders()))
 	}
 
 	return httpExpOpt, nil

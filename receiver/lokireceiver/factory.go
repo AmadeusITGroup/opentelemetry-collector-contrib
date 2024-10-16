@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/localhostgate"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/lokireceiver/internal/metadata"
 )
 
@@ -38,13 +38,13 @@ func createDefaultConfig() component.Config {
 	return &Config{
 		Protocols: Protocols{
 			GRPC: &configgrpc.ServerConfig{
-				NetAddr: confignet.NetAddr{
-					Endpoint:  localhostgate.EndpointForPort(defaultGRPCPort),
-					Transport: "tcp",
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  testutil.EndpointForPort(defaultGRPCPort),
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 			HTTP: &confighttp.ServerConfig{
-				Endpoint: localhostgate.EndpointForPort(defaultHTTPPort),
+				Endpoint: testutil.EndpointForPort(defaultHTTPPort),
 			},
 		},
 	}
@@ -52,7 +52,7 @@ func createDefaultConfig() component.Config {
 
 func createLogsReceiver(
 	_ context.Context,
-	settings receiver.CreateSettings,
+	settings receiver.Settings,
 	cfg component.Config,
 	consumer consumer.Logs,
 ) (receiver.Logs, error) {

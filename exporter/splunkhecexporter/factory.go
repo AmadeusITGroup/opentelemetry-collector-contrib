@@ -12,8 +12,9 @@ import (
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterbatcher"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/collector/semconv/v1.27.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/splunkhecexporter/internal/metadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk"
@@ -58,6 +59,9 @@ func NewFactory() exporter.Factory {
 }
 
 func createDefaultConfig() component.Config {
+	batcherCfg := exporterbatcher.NewDefaultConfig()
+	batcherCfg.Enabled = false
+
 	defaultMaxConns := defaultMaxIdleCons
 	defaultIdleConnTimeout := defaultIdleConnTimeout
 	return &Config{
@@ -73,7 +77,8 @@ func createDefaultConfig() component.Config {
 		},
 		SplunkAppName:           defaultSplunkAppName,
 		BackOffConfig:           configretry.NewDefaultBackOffConfig(),
-		QueueSettings:           exporterhelper.NewDefaultQueueSettings(),
+		QueueSettings:           exporterhelper.NewDefaultQueueConfig(),
+		BatcherConfig:           batcherCfg,
 		DisableCompression:      false,
 		MaxContentLengthLogs:    defaultContentLengthLogsLimit,
 		MaxContentLengthMetrics: defaultContentLengthMetricsLimit,
@@ -102,7 +107,7 @@ func createDefaultConfig() component.Config {
 
 func createTracesExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	config component.Config,
 ) (exporter.Traces, error) {
 	cfg := config.(*Config)
@@ -115,11 +120,13 @@ func createTracesExporter(
 		cfg,
 		c.pushTraceData,
 		// explicitly disable since we rely on http.Client timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(cfg.BackOffConfig),
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithStart(c.start),
-		exporterhelper.WithShutdown(c.stop))
+		exporterhelper.WithShutdown(c.stop),
+		exporterhelper.WithBatcher(cfg.BatcherConfig),
+	)
 
 	if err != nil {
 		return nil, err
@@ -135,7 +142,7 @@ func createTracesExporter(
 
 func createMetricsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	config component.Config,
 ) (exporter.Metrics, error) {
 	cfg := config.(*Config)
@@ -148,11 +155,13 @@ func createMetricsExporter(
 		cfg,
 		c.pushMetricsData,
 		// explicitly disable since we rely on http.Client timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(cfg.BackOffConfig),
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithStart(c.start),
-		exporterhelper.WithShutdown(c.stop))
+		exporterhelper.WithShutdown(c.stop),
+		exporterhelper.WithBatcher(cfg.BatcherConfig),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +176,7 @@ func createMetricsExporter(
 
 func createLogsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	config component.Config,
 ) (exporter exporter.Logs, err error) {
 	cfg := config.(*Config)
@@ -180,11 +189,13 @@ func createLogsExporter(
 		cfg,
 		c.pushLogData,
 		// explicitly disable since we rely on http.Client timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(cfg.BackOffConfig),
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithStart(c.start),
-		exporterhelper.WithShutdown(c.stop))
+		exporterhelper.WithShutdown(c.stop),
+		exporterhelper.WithBatcher(cfg.BatcherConfig),
+	)
 
 	if err != nil {
 		return nil, err

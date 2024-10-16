@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -22,7 +23,7 @@ import (
 )
 
 func TestCreateClientInvalidEndpoint(t *testing.T) {
-	_, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	_, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: "http://\x00",
 		},
@@ -39,7 +40,7 @@ func TestNodeStatsNoPassword(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -61,7 +62,7 @@ func TestNodeStatsNilNodes(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -84,7 +85,7 @@ func TestNodeStatsNilIOStats(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withNodes(nodeJSON))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -110,7 +111,7 @@ func TestNodeStatsAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth(username, password))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -130,7 +131,7 @@ func TestNodeStatsNoAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -146,7 +147,7 @@ func TestNodeStatsBadAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -169,7 +170,7 @@ func TestClusterHealthNoPassword(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -195,7 +196,7 @@ func TestClusterHealthAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth(username, password))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -215,7 +216,7 @@ func TestClusterHealthNoAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -231,7 +232,7 @@ func TestClusterHealthNoAuthorization(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -254,7 +255,7 @@ func TestMetadataNoPassword(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -280,7 +281,7 @@ func TestMetadataAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth(username, password))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -300,7 +301,7 @@ func TestMetadataNoAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -316,7 +317,7 @@ func TestMetadataNoAuthorization(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -331,7 +332,7 @@ func TestMetadataNoAuthorization(t *testing.T) {
 }
 
 func TestDoRequestBadPath(t *testing.T) {
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: "http://example.localhost:9200",
 		},
@@ -343,7 +344,7 @@ func TestDoRequestBadPath(t *testing.T) {
 }
 
 func TestDoRequestClientTimeout(t *testing.T) {
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: "http://example.localhost:9200",
 		},
@@ -361,7 +362,7 @@ func TestDoRequest404(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -369,8 +370,7 @@ func TestDoRequest404(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.doRequest(context.Background(), "invalid_path")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "404")
+	require.ErrorContains(t, err, "404")
 }
 
 func TestIndexStatsNoPassword(t *testing.T) {
@@ -382,7 +382,7 @@ func TestIndexStatsNoPassword(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -404,7 +404,7 @@ func TestIndexStatsNilNodes(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -430,7 +430,7 @@ func TestIndexStatsAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth(username, password))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -450,7 +450,7 @@ func TestIndexStatsNoAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -466,7 +466,7 @@ func TestIndexStatsBadAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -489,7 +489,7 @@ func TestClusterStatsNoPassword(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -511,7 +511,7 @@ func TestClusterStatsNilNodes(t *testing.T) {
 	elasticsearchMock := newMockServer(t)
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -537,7 +537,7 @@ func TestClusterStatsAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth(username, password))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -557,7 +557,7 @@ func TestClusterStatsNoAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -573,7 +573,7 @@ func TestClusterStatsBadAuthentication(t *testing.T) {
 	elasticsearchMock := newMockServer(t, withBasicAuth("user", "pass"))
 	defer elasticsearchMock.Close()
 
-	client, err := newElasticsearchClient(componenttest.NewNopTelemetrySettings(), Config{
+	client, err := newElasticsearchClient(context.Background(), componenttest.NewNopTelemetrySettings(), Config{
 		ClientConfig: confighttp.ClientConfig{
 			Endpoint: elasticsearchMock.URL,
 		},
@@ -638,14 +638,14 @@ func newMockServer(t *testing.T, opts ...mockServerOption) *httptest.Server {
 		if req.URL.Path == "/" {
 			rw.WriteHeader(200)
 			_, err := rw.Write(mock.metadata)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 		for prefix, payload := range mock.prefixes {
 			if strings.HasPrefix(req.URL.Path, prefix) {
 				rw.WriteHeader(200)
 				_, err := rw.Write(payload)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				return
 			}
 		}

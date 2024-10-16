@@ -26,32 +26,32 @@ func NewFactory() receiver.Factory {
 }
 
 func createDefaultConfig() component.Config {
+	clientConfig := confighttp.NewDefaultClientConfig()
+	clientConfig.TLSSetting = configtls.ClientConfig{}
+	clientConfig.Endpoint = defaultEndpoint
+	clientConfig.Timeout = 1 * time.Minute
 	return &Config{
-		MetricsBuilderConfig:      metadata.DefaultMetricsBuilderConfig(),
-		ScraperControllerSettings: scraperhelper.NewDefaultScraperControllerSettings(metadata.Type),
-		ClientConfig: confighttp.ClientConfig{
-			TLSSetting: configtls.TLSClientSetting{},
-			Endpoint:   defaultEndpoint,
-			Timeout:    1 * time.Minute,
-		},
+		MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig(),
+		ControllerConfig:     scraperhelper.NewDefaultControllerConfig(),
+		ClientConfig:         clientConfig,
 	}
 }
 
 func createMetricsReceiver(
 	_ context.Context,
-	params receiver.CreateSettings,
+	params receiver.Settings,
 	rConf component.Config,
 	consumer consumer.Metrics,
 ) (receiver.Metrics, error) {
 	cfg := rConf.(*Config)
 	ns := newCouchdbScraper(params, cfg)
-	scraper, err := scraperhelper.NewScraper(metadata.Type.String(), ns.scrape, scraperhelper.WithStart(ns.start))
+	scraper, err := scraperhelper.NewScraper(metadata.Type, ns.scrape, scraperhelper.WithStart(ns.start))
 	if err != nil {
 		return nil, err
 	}
 
 	return scraperhelper.NewScraperControllerReceiver(
-		&cfg.ScraperControllerSettings, params, consumer,
+		&cfg.ControllerConfig, params, consumer,
 		scraperhelper.AddScraper(scraper),
 	)
 }

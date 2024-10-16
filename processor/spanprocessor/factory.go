@@ -49,7 +49,7 @@ func createDefaultConfig() component.Config {
 
 func createTracesProcessor(
 	ctx context.Context,
-	set processor.CreateSettings,
+	set processor.Settings,
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
@@ -76,7 +76,7 @@ func createTracesProcessor(
 	if err != nil {
 		return nil, err
 	}
-	return processorhelper.NewTracesProcessor(
+	return processorhelper.NewTraces(
 		ctx,
 		set,
 		cfg,

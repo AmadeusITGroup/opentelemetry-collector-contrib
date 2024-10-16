@@ -7,7 +7,7 @@
 #####################################################
 #
 # Learn about membership in OpenTelemetry community:
-#  https://github.com/open-telemetry/community/blob/main/community-membership.md
+#  https://github.com/open-telemetry/community/blob/main/guides/contributor/membership.md
 #
 #
 # Learn about CODEOWNERS file format:
@@ -22,8 +22,6 @@
 internal/common
 
 ## DEPRECATED components
-processor/spanmetricsprocessor/
 
 ## UNMAINTAINED components
-exporter/alibabacloudlogserviceexporter/
-exporter/skywalkingexporter/
+receiver/googlecloudspannerreceiver/

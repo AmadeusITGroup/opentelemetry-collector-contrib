@@ -15,7 +15,7 @@ import (
 	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/collector/semconv/v1.12.0"
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/traceutil"
@@ -133,6 +133,7 @@ func spanToEnvelopes(
 		}
 
 		spanEventEnvelope := newEnvelope(span, toTime(spanEvent.Timestamp()).Format(time.RFC3339Nano))
+		spanEventEnvelope.Tags[contracts.OperationParentId] = traceutil.SpanIDToHexOrEmptyString(span.SpanID())
 
 		data := contracts.NewData()
 

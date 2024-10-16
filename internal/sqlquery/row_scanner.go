@@ -12,7 +12,7 @@ import (
 	"go.uber.org/multierr"
 )
 
-var errNullValueWarning = errors.New("NULL value")
+var ErrNullValueWarning = errors.New("NULL value")
 
 type rowScanner struct {
 	cols       map[string]func() (string, error)
@@ -28,11 +28,11 @@ func newRowScanner(colTypes []colType) *rowScanner {
 		var v any
 		rs.cols[colName] = func() (string, error) {
 			if v == nil {
-				return "", errNullValueWarning
+				return "", ErrNullValueWarning
 			}
 			format := "%v"
 			if t, isTime := v.(time.Time); isTime {
-				return t.Format(time.RFC3339), nil
+				return t.Format(time.RFC3339Nano), nil
 			}
 			if reflect.TypeOf(v).Kind() == reflect.Slice {
 				// The Postgres driver returns a []uint8 (ascii string) for decimal and numeric types,

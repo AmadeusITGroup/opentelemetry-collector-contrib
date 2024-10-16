@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/iancoleman/strcase"
@@ -21,26 +22,111 @@ type Enum int64
 
 type EnumSymbol string
 
-func newPath[K any](fields []field) (*basePath[K], error) {
-	if len(fields) == 0 {
+func buildOriginalText(path *path) string {
+	var builder strings.Builder
+	if path.Context != "" {
+		builder.WriteString(path.Context)
+		if len(path.Fields) > 0 {
+			builder.WriteString(".")
+		}
+	}
+	for i, f := range path.Fields {
+		builder.WriteString(f.Name)
+		if len(f.Keys) > 0 {
+			for _, k := range f.Keys {
+				builder.WriteString("[")
+				if k.Int != nil {
+					builder.WriteString(strconv.FormatInt(*k.Int, 10))
+				}
+				if k.String != nil {
+					builder.WriteString(*k.String)
+				}
+				builder.WriteString("]")
+			}
+		}
+		if i != len(path.Fields)-1 {
+			builder.WriteString(".")
+		}
+	}
+	return builder.String()
+}
+
+func (p *Parser[K]) newPath(path *path) (*basePath[K], error) {
+	if len(path.Fields) == 0 {
 		return nil, fmt.Errorf("cannot make a path from zero fields")
 	}
+
+	pathContext, fields, err := p.parsePathContext(path)
+	if err != nil {
+		return nil, err
+	}
+
+	originalText := buildOriginalText(path)
 	var current *basePath[K]
 	for i := len(fields) - 1; i >= 0; i-- {
 		current = &basePath[K]{
-			name:     fields[i].Name,
-			keys:     newKeys[K](fields[i].Keys),
-			nextPath: current,
+			context:      pathContext,
+			name:         fields[i].Name,
+			keys:         newKeys[K](fields[i].Keys),
+			nextPath:     current,
+			originalText: originalText,
 		}
 	}
 	current.fetched = true
+	current.originalText = originalText
 	return current, nil
+}
+
+func (p *Parser[K]) parsePathContext(path *path) (string, []field, error) {
+	hasPathContextNames := len(p.pathContextNames) > 0
+	if path.Context != "" {
+		// no pathContextNames means the Parser isn't handling the grammar path's context yet,
+		// so it falls back to the previous behavior with the path.Context value as the first
+		// path's segment.
+		if !hasPathContextNames {
+			return "", append([]field{{Name: path.Context}}, path.Fields...), nil
+		}
+
+		if _, ok := p.pathContextNames[path.Context]; !ok {
+			return "", path.Fields, fmt.Errorf(`context "%s" from path "%s" is not valid, it must be replaced by one of: %s`, path.Context, buildOriginalText(path), p.buildPathContextNamesText(""))
+		}
+
+		return path.Context, path.Fields, nil
+	}
+
+	if hasPathContextNames {
+		originalText := buildOriginalText(path)
+		return "", nil, fmt.Errorf(`missing context name for path "%s", possibly valid options are: %s`, originalText, p.buildPathContextNamesText(originalText))
+	}
+
+	return "", path.Fields, nil
+}
+
+func (p *Parser[K]) buildPathContextNamesText(path string) string {
+	var builder strings.Builder
+	var suffix string
+	if path != "" {
+		suffix = "." + path
+	}
+
+	i := 0
+	for ctx := range p.pathContextNames {
+		builder.WriteString(fmt.Sprintf(`"%s%s"`, ctx, suffix))
+		if i != len(p.pathContextNames)-1 {
+			builder.WriteString(", ")
+		}
+		i++
+	}
+	return builder.String()
 }
 
 // Path represents a chain of path parts in an OTTL statement, such as `body.string`.
 // A Path has a name, and potentially a set of keys.
 // If the path in the OTTL statement contains multiple parts (separated by a dot (`.`)), then the Path will have a pointer to the next Path.
 type Path[K any] interface {
+	// Context is the OTTL context name of this Path.
+	Context() string
+
 	// Name is the name of this segment of the path.
 	Name() string
 
@@ -51,16 +137,25 @@ type Path[K any] interface {
 	// Keys provides the Keys for this Path.
 	// Will return nil if there are no Keys.
 	Keys() []Key[K]
+
+	// String returns a string representation of this Path and the next Paths
+	String() string
 }
 
 var _ Path[any] = &basePath[any]{}
 
 type basePath[K any] struct {
-	name        string
-	keys        []Key[K]
-	nextPath    *basePath[K]
-	fetched     bool
-	fetchedKeys bool
+	context      string
+	name         string
+	keys         []Key[K]
+	nextPath     *basePath[K]
+	fetched      bool
+	fetchedKeys  bool
+	originalText string
+}
+
+func (p *basePath[K]) Context() string {
+	return p.context
 }
 
 func (p *basePath[K]) Name() string {
@@ -81,6 +176,10 @@ func (p *basePath[K]) Keys() []Key[K] {
 	}
 	p.fetchedKeys = true
 	return p.keys
+}
+
+func (p *basePath[K]) String() string {
+	return p.originalText
 }
 
 func (p *basePath[K]) isComplete() error {
@@ -248,8 +347,8 @@ func (p *Parser[K]) buildArgs(ed editor, argsVal reflect.Value) error {
 			switch {
 			case arg.Value.Enum != nil:
 				name = string(*arg.Value.Enum)
-			case arg.Value.FunctionName != nil:
-				name = *arg.Value.FunctionName
+			case arg.FunctionName != nil:
+				name = *arg.FunctionName
 			default:
 				return fmt.Errorf("invalid function name given")
 			}
@@ -377,7 +476,7 @@ func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 		if argVal.Literal == nil || argVal.Literal.Path == nil {
 			return nil, fmt.Errorf("must be a path")
 		}
-		np, err := newPath[K](argVal.Literal.Path.Fields)
+		np, err := p.newPath(argVal.Literal.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -458,6 +557,12 @@ func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 			return nil, err
 		}
 		return StandardBoolLikeGetter[K]{Getter: arg.Get}, nil
+	case strings.HasPrefix(name, "ByteSliceLikeGetter"):
+		arg, err := p.newGetter(argVal)
+		if err != nil {
+			return nil, err
+		}
+		return StandardByteSliceLikeGetter[K]{Getter: arg.Get}, nil
 	case name == "Enum":
 		arg, err := p.enumParser((*EnumSymbol)(argVal.Enum))
 		if err != nil {

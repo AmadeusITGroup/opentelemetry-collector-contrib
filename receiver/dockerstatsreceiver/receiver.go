@@ -37,12 +37,13 @@ type resultV2 struct {
 
 type metricsReceiver struct {
 	config   *Config
-	settings receiver.CreateSettings
+	settings receiver.Settings
 	client   *docker.Client
 	mb       *metadata.MetricsBuilder
+	cancel   context.CancelFunc
 }
 
-func newMetricsReceiver(set receiver.CreateSettings, config *Config) *metricsReceiver {
+func newMetricsReceiver(set receiver.Settings, config *Config) *metricsReceiver {
 	return &metricsReceiver{
 		config:   config,
 		settings: set,
@@ -51,12 +52,8 @@ func newMetricsReceiver(set receiver.CreateSettings, config *Config) *metricsRec
 }
 
 func (r *metricsReceiver) start(ctx context.Context, _ component.Host) error {
-	dConfig, err := docker.NewConfig(r.config.Endpoint, r.config.Timeout, r.config.ExcludedImages, r.config.DockerAPIVersion)
-	if err != nil {
-		return err
-	}
-
-	r.client, err = docker.NewDockerClient(dConfig, r.settings.Logger)
+	var err error
+	r.client, err = docker.NewDockerClient(&r.config.Config, r.settings.Logger)
 	if err != nil {
 		return err
 	}
@@ -65,7 +62,17 @@ func (r *metricsReceiver) start(ctx context.Context, _ component.Host) error {
 		return err
 	}
 
-	go r.client.ContainerEventLoop(ctx)
+	cctx, cancel := context.WithCancel(ctx)
+	r.cancel = cancel
+
+	go r.client.ContainerEventLoop(cctx)
+	return nil
+}
+
+func (r *metricsReceiver) shutdown(context.Context) error {
+	if r.cancel != nil {
+		r.cancel()
+	}
 	return nil
 }
 
@@ -87,7 +94,8 @@ func (r *metricsReceiver) scrapeV2(ctx context.Context) (pmetric.Metrics, error)
 			results <- resultV2{
 				stats:     statsJSON,
 				container: &c,
-				err:       nil}
+				err:       nil,
+			}
 		}(container)
 	}
 
@@ -161,6 +169,8 @@ func (r *metricsReceiver) recordMemoryMetrics(now pcommon.Timestamp, memoryStats
 	r.mb.RecordContainerMemoryPercentDataPoint(now, calculateMemoryPercent(memoryStats.Limit, totalUsage))
 
 	r.mb.RecordContainerMemoryUsageMaxDataPoint(now, int64(memoryStats.MaxUsage))
+
+	r.mb.RecordContainerMemoryFailsDataPoint(now, int64(memoryStats.Failcnt))
 
 	recorders := map[string]func(pcommon.Timestamp, int64){
 		"cache":                     r.mb.RecordContainerMemoryCacheDataPoint,
@@ -256,6 +266,7 @@ func (r *metricsReceiver) recordCPUMetrics(now pcommon.Timestamp, cpuStats *dtyp
 	r.mb.RecordContainerCPUThrottlingDataPeriodsDataPoint(now, int64(cpuStats.ThrottlingData.Periods))
 	r.mb.RecordContainerCPUThrottlingDataThrottledTimeDataPoint(now, int64(cpuStats.ThrottlingData.ThrottledTime))
 	r.mb.RecordContainerCPUUtilizationDataPoint(now, calculateCPUPercent(prevStats, cpuStats))
+	r.mb.RecordContainerCPULogicalCountDataPoint(now, int64(cpuStats.OnlineCPUs))
 
 	for coreNum, v := range cpuStats.CPUUsage.PercpuUsage {
 		r.mb.RecordContainerCPUUsagePercpuDataPoint(now, int64(v), fmt.Sprintf("cpu%s", strconv.Itoa(coreNum)))

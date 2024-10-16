@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
 
@@ -85,6 +86,172 @@ func Test_parse(t *testing.T) {
 			},
 		},
 		{
+			name:      "editor with map",
+			statement: `fff({"stringAttr": "value", "intAttr": 3, "floatAttr": 2.5, "boolAttr": true})`,
+			expected: &parsedStatement{
+				Editor: editor{
+					Function: "fff",
+					Arguments: []argument{
+						{
+							Value: value{
+								Map: &mapValue{
+									Values: []mapItem{
+										{
+											Key:   ottltest.Strp("stringAttr"),
+											Value: &value{String: ottltest.Strp("value")},
+										},
+										{
+											Key: ottltest.Strp("intAttr"),
+											Value: &value{
+												Literal: &mathExprLiteral{
+													Int: ottltest.Intp(3),
+												},
+											},
+										},
+										{
+											Key: ottltest.Strp("floatAttr"),
+											Value: &value{
+												Literal: &mathExprLiteral{
+													Float: ottltest.Floatp(2.5),
+												},
+											},
+										},
+										{
+											Key:   ottltest.Strp("boolAttr"),
+											Value: &value{Bool: (*boolean)(ottltest.Boolp(true))},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				WhereClause: nil,
+			},
+		},
+		{
+			name:      "editor with empty map",
+			statement: `fff({})`,
+			expected: &parsedStatement{
+				Editor: editor{
+					Function: "fff",
+					Arguments: []argument{
+						{
+							Value: value{
+								Map: &mapValue{
+									Values: nil,
+								},
+							},
+						},
+					},
+				},
+				WhereClause: nil,
+			},
+		},
+		{
+			name:      "editor with converter with a map",
+			statement: `fff(GetSomething({"foo":"bar"}))`,
+			expected: &parsedStatement{
+				Editor: editor{
+					Function: "fff",
+					Arguments: []argument{
+						{
+							Value: value{
+								Literal: &mathExprLiteral{
+									Converter: &converter{
+										Function: "GetSomething",
+										Arguments: []argument{
+											{
+												Value: value{
+													Map: &mapValue{
+														Values: []mapItem{
+															{
+																Key:   ottltest.Strp("foo"),
+																Value: &value{String: ottltest.Strp("bar")},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				WhereClause: nil,
+			},
+		},
+		{
+			name:      "editor with nested map",
+			statement: `fff({"mapAttr": {"foo": "bar", "get": bear.honey, "arrayAttr":["foo", "bar"]}})`,
+			expected: &parsedStatement{
+				Editor: editor{
+					Function: "fff",
+					Arguments: []argument{
+						{
+							Value: value{
+								Map: &mapValue{
+									Values: []mapItem{
+										{
+											Key: ottltest.Strp("mapAttr"),
+											Value: &value{
+												Map: &mapValue{
+													Values: []mapItem{
+														{
+															Key:   ottltest.Strp("foo"),
+															Value: &value{String: ottltest.Strp("bar")},
+														},
+														{
+															Key: ottltest.Strp("get"),
+															Value: &value{
+																Literal: &mathExprLiteral{
+																	Path: &path{
+																		Pos: lexer.Position{
+																			Offset: 38,
+																			Line:   1,
+																			Column: 39,
+																		},
+																		Context: "bear",
+																		Fields: []field{
+																			{
+																				Name: "honey",
+																			},
+																		},
+																	},
+																},
+															},
+														},
+														{
+															Key: ottltest.Strp("arrayAttr"),
+															Value: &value{
+																List: &list{
+																	Values: []value{
+																		{
+																			String: ottltest.Strp("foo"),
+																		},
+																		{
+																			String: ottltest.Strp("bar"),
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				WhereClause: nil,
+			},
+		},
+		{
 			name:      "complex editor",
 			statement: `set("foo", GetSomething(bear.honey))`,
 			expected: &parsedStatement{
@@ -106,10 +273,13 @@ func Test_parse(t *testing.T) {
 												Value: value{
 													Literal: &mathExprLiteral{
 														Path: &path{
+															Pos: lexer.Position{
+																Offset: 24,
+																Line:   1,
+																Column: 25,
+															},
+															Context: "bear",
 															Fields: []field{
-																{
-																	Name: "bear",
-																},
 																{
 																	Name: "honey",
 																},
@@ -139,10 +309,13 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
+										Context: "foo",
 										Fields: []field{
-											{
-												Name: "foo",
-											},
 											{
 												Name: "attributes",
 												Keys: []key{
@@ -170,6 +343,47 @@ func Test_parse(t *testing.T) {
 			},
 		},
 		{
+			name:      "single field segment",
+			statement: `set(attributes["bar"], "dog")`,
+			expected: &parsedStatement{
+				Editor: editor{
+					Function: "set",
+					Arguments: []argument{
+						{
+							Value: value{
+								Literal: &mathExprLiteral{
+									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
+										Context: "",
+										Fields: []field{
+											{
+												Name: "attributes",
+												Keys: []key{
+													{
+														String: ottltest.Strp("bar"),
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Value: value{
+								String: ottltest.Strp("dog"),
+							},
+						},
+					},
+				},
+				WhereClause: nil,
+			},
+		},
+		{
 			name:      "Converter parameters (All Uppercase)",
 			statement: `replace_pattern(attributes["message"], "device=*", attributes["device_name"], SHA256)`,
 			expected: &parsedStatement{
@@ -180,6 +394,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 16,
+											Line:   1,
+											Column: 17,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -203,6 +422,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 51,
+											Line:   1,
+											Column: 52,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -238,6 +462,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 16,
+											Line:   1,
+											Column: 17,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -253,9 +482,7 @@ func Test_parse(t *testing.T) {
 							},
 						},
 						{
-							Value: value{
-								FunctionName: (ottltest.Strp("Sha256")),
-							},
+							FunctionName: ottltest.Strp("Sha256"),
 						},
 					},
 				},
@@ -273,6 +500,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 16,
+											Line:   1,
+											Column: 17,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -308,10 +540,13 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
+										Context: "foo",
 										Fields: []field{
-											{
-												Name: "foo",
-											},
 											{
 												Name: "bar",
 												Keys: []key{
@@ -364,10 +599,13 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
+										Context: "foo",
 										Fields: []field{
-											{
-												Name: "foo",
-											},
 											{
 												Name: "attributes",
 												Keys: []key{
@@ -398,6 +636,11 @@ func Test_parse(t *testing.T) {
 								Left: value{
 									Literal: &mathExprLiteral{
 										Path: &path{
+											Pos: lexer.Position{
+												Offset: 44,
+												Line:   1,
+												Column: 45,
+											},
 											Fields: []field{
 												{
 													Name: "name",
@@ -427,10 +670,13 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
+										Context: "foo",
 										Fields: []field{
-											{
-												Name: "foo",
-											},
 											{
 												Name: "attributes",
 												Keys: []key{
@@ -461,6 +707,11 @@ func Test_parse(t *testing.T) {
 								Left: value{
 									Literal: &mathExprLiteral{
 										Path: &path{
+											Pos: lexer.Position{
+												Offset: 44,
+												Line:   1,
+												Column: 45,
+											},
 											Fields: []field{
 												{
 													Name: "name",
@@ -490,10 +741,13 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 7,
+											Line:   1,
+											Column: 8,
+										},
+										Context: "foo",
 										Fields: []field{
-											{
-												Name: "foo",
-											},
 											{
 												Name: "attributes",
 												Keys: []key{
@@ -524,6 +778,11 @@ func Test_parse(t *testing.T) {
 								Left: value{
 									Literal: &mathExprLiteral{
 										Path: &path{
+											Pos: lexer.Position{
+												Offset: 52,
+												Line:   1,
+												Column: 53,
+											},
 											Fields: []field{
 												{
 													Name: "name",
@@ -614,6 +873,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -649,6 +913,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -684,6 +953,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -719,6 +993,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -756,6 +1035,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -797,6 +1081,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -841,6 +1130,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -912,6 +1206,11 @@ func Test_parse(t *testing.T) {
 										{
 											Literal: &mathExprLiteral{
 												Path: &path{
+													Pos: lexer.Position{
+														Offset: 70,
+														Line:   1,
+														Column: 71,
+													},
 													Fields: []field{
 														{
 															Name: "attributes",
@@ -945,6 +1244,11 @@ func Test_parse(t *testing.T) {
 							Value: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 4,
+											Line:   1,
+											Column: 5,
+										},
 										Fields: []field{
 											{
 												Name: "attributes",
@@ -1030,6 +1334,11 @@ func Test_parse(t *testing.T) {
 											Left: &mathValue{
 												Literal: &mathExprLiteral{
 													Path: &path{
+														Pos: lexer.Position{
+															Offset: 55,
+															Line:   1,
+															Column: 56,
+														},
 														Fields: []field{
 															{
 																Name: "three",
@@ -1104,6 +1413,11 @@ func Test_parseCondition_full(t *testing.T) {
 							Left: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 0,
+											Line:   1,
+											Column: 1,
+										},
 										Fields: []field{
 											{
 												Name: "name",
@@ -1131,6 +1445,11 @@ func Test_parseCondition_full(t *testing.T) {
 							Left: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 0,
+											Line:   1,
+											Column: 1,
+										},
 										Fields: []field{
 											{
 												Name: "name",
@@ -1195,6 +1514,11 @@ func Test_parseCondition_full(t *testing.T) {
 										Left: &mathValue{
 											Literal: &mathExprLiteral{
 												Path: &path{
+													Pos: lexer.Position{
+														Offset: 13,
+														Line:   1,
+														Column: 14,
+													},
 													Fields: []field{
 														{
 															Name: "three",
@@ -1241,10 +1565,10 @@ func testParsePath[K any](p Path[K]) (GetSetter[any], error) {
 		}
 
 		return &StandardGetSetter[any]{
-			Getter: func(ctx context.Context, tCtx any) (any, error) {
+			Getter: func(_ context.Context, tCtx any) (any, error) {
 				return tCtx, nil
 			},
-			Setter: func(ctx context.Context, tCtx any, val any) error {
+			Setter: func(_ context.Context, tCtx any, val any) error {
 				reflect.DeepEqual(tCtx, val)
 				return nil
 			},
@@ -1252,14 +1576,14 @@ func testParsePath[K any](p Path[K]) (GetSetter[any], error) {
 	}
 	if p != nil && (p.Name() == "dur1" || p.Name() == "dur2") {
 		return &StandardGetSetter[any]{
-			Getter: func(ctx context.Context, tCtx any) (any, error) {
+			Getter: func(_ context.Context, tCtx any) (any, error) {
 				m, ok := tCtx.(map[string]time.Duration)
 				if !ok {
 					return nil, fmt.Errorf("unable to convert transform context to map of strings to times")
 				}
 				return m[p.Name()], nil
 			},
-			Setter: func(ctx context.Context, tCtx any, val any) error {
+			Setter: func(_ context.Context, tCtx any, val any) error {
 				reflect.DeepEqual(tCtx, val)
 				return nil
 			},
@@ -1267,14 +1591,14 @@ func testParsePath[K any](p Path[K]) (GetSetter[any], error) {
 	}
 	if p != nil && (p.Name() == "time1" || p.Name() == "time2") {
 		return &StandardGetSetter[any]{
-			Getter: func(ctx context.Context, tCtx any) (any, error) {
+			Getter: func(_ context.Context, tCtx any) (any, error) {
 				m, ok := tCtx.(map[string]time.Time)
 				if !ok {
 					return nil, fmt.Errorf("unable to convert transform context to map of strings to times")
 				}
 				return m[p.Name()], nil
 			},
-			Setter: func(ctx context.Context, tCtx any, val any) error {
+			Setter: func(_ context.Context, tCtx any, val any) error {
 				reflect.DeepEqual(tCtx, val)
 				return nil
 			},
@@ -1294,6 +1618,11 @@ func setNameTest(b *booleanExpression) *parsedStatement {
 					Value: value{
 						Literal: &mathExprLiteral{
 							Path: &path{
+								Pos: lexer.Position{
+									Offset: 4,
+									Line:   1,
+									Column: 5,
+								},
 								Fields: []field{
 									{
 										Name: "name",
@@ -1530,6 +1859,11 @@ func Test_parseWhere(t *testing.T) {
 							Left: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 24,
+											Line:   1,
+											Column: 25,
+										},
 										Fields: []field{
 											{
 												Name: "name",
@@ -1552,6 +1886,11 @@ func Test_parseWhere(t *testing.T) {
 									Left: value{
 										Literal: &mathExprLiteral{
 											Path: &path{
+												Pos: lexer.Position{
+													Offset: 42,
+													Line:   1,
+													Column: 43,
+												},
 												Fields: []field{
 													{
 														Name: "name",
@@ -1580,6 +1919,11 @@ func Test_parseWhere(t *testing.T) {
 							Left: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 24,
+											Line:   1,
+											Column: 25,
+										},
 										Fields: []field{
 											{
 												Name: "name",
@@ -1604,6 +1948,11 @@ func Test_parseWhere(t *testing.T) {
 									Left: value{
 										Literal: &mathExprLiteral{
 											Path: &path{
+												Pos: lexer.Position{
+													Offset: 41,
+													Line:   1,
+													Column: 42,
+												},
 												Fields: []field{
 													{
 														Name: "name",
@@ -1656,6 +2005,11 @@ func Test_parseWhere(t *testing.T) {
 							Left: value{
 								Literal: &mathExprLiteral{
 									Path: &path{
+										Pos: lexer.Position{
+											Offset: 28,
+											Line:   1,
+											Column: 29,
+										},
 										Fields: []field{
 											{
 												Name: "name",
@@ -1952,6 +2306,7 @@ func Test_parseCondition(t *testing.T) {
 		{`One() == 1`, false},
 		{`test(fail())`, true},
 		{`Test()`, false},
+		{`"test" == Foo`, true},
 	}
 	pat := regexp.MustCompile("[^a-zA-Z0-9]+")
 	for _, tt := range tests {
@@ -1978,7 +2333,7 @@ func Test_Statement_Execute(t *testing.T) {
 		{
 			name:      "Condition matched",
 			condition: alwaysTrue[any],
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return 1, nil
 			},
 			expectedCondition: true,
@@ -1987,7 +2342,7 @@ func Test_Statement_Execute(t *testing.T) {
 		{
 			name:      "Condition not matched",
 			condition: alwaysFalse[any],
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return 1, nil
 			},
 			expectedCondition: false,
@@ -1996,7 +2351,7 @@ func Test_Statement_Execute(t *testing.T) {
 		{
 			name:      "No result",
 			condition: alwaysTrue[any],
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return nil, nil
 			},
 			expectedCondition: true,
@@ -2060,7 +2415,7 @@ func Test_Statements_Execute_Error(t *testing.T) {
 			condition: func(context.Context, any) (bool, error) {
 				return true, fmt.Errorf("test")
 			},
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return 1, nil
 			},
 			errorMode: IgnoreError,
@@ -2070,7 +2425,7 @@ func Test_Statements_Execute_Error(t *testing.T) {
 			condition: func(context.Context, any) (bool, error) {
 				return true, fmt.Errorf("test")
 			},
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return 1, nil
 			},
 			errorMode: PropagateError,
@@ -2080,7 +2435,7 @@ func Test_Statements_Execute_Error(t *testing.T) {
 			condition: func(context.Context, any) (bool, error) {
 				return true, nil
 			},
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return 1, fmt.Errorf("test")
 			},
 			errorMode: IgnoreError,
@@ -2090,7 +2445,7 @@ func Test_Statements_Execute_Error(t *testing.T) {
 			condition: func(context.Context, any) (bool, error) {
 				return true, nil
 			},
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return 1, fmt.Errorf("test")
 			},
 			errorMode: PropagateError,
@@ -2100,7 +2455,7 @@ func Test_Statements_Execute_Error(t *testing.T) {
 			condition: func(context.Context, any) (bool, error) {
 				return true, fmt.Errorf("test")
 			},
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return 1, nil
 			},
 			errorMode: SilentError,
@@ -2110,7 +2465,7 @@ func Test_Statements_Execute_Error(t *testing.T) {
 			condition: func(context.Context, any) (bool, error) {
 				return true, nil
 			},
-			function: func(ctx context.Context, tCtx any) (any, error) {
+			function: func(_ context.Context, _ any) (any, error) {
 				return 1, fmt.Errorf("test")
 			},
 			errorMode: SilentError,

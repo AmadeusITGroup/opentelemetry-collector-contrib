@@ -14,11 +14,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer/consumertest"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
 	"go.uber.org/zap"
@@ -41,23 +41,23 @@ func TestValidConfig(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestCreateTracesReceiver(t *testing.T) {
+func TestCreateTraces(t *testing.T) {
 	factory := NewFactory()
-	traceReceiver, err := factory.CreateTracesReceiver(
+	traceReceiver, err := factory.CreateTraces(
 		context.Background(),
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		factory.CreateDefaultConfig(),
 		nil,
 	)
-	require.ErrorIs(t, err, component.ErrDataTypeIsNotSupported)
+	require.ErrorIs(t, err, pipeline.ErrSignalNotSupported)
 	require.Nil(t, traceReceiver)
 }
 
-func TestCreateMetricsReceiver(t *testing.T) {
+func TestCreateMetrics(t *testing.T) {
 	factory := NewFactory()
-	metricsReceiver, err := factory.CreateMetricsReceiver(
+	metricsReceiver, err := factory.CreateMetrics(
 		context.Background(),
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		tlsConfig(),
 		consumertest.NewNop(),
 	)
@@ -70,9 +70,9 @@ func TestFactoryInvalidExtraMetadataLabels(t *testing.T) {
 	cfg := Config{
 		ExtraMetadataLabels: []kubelet.MetadataLabel{kubelet.MetadataLabel("invalid-label")},
 	}
-	metricsReceiver, err := factory.CreateMetricsReceiver(
+	metricsReceiver, err := factory.CreateMetrics(
 		context.Background(),
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		&cfg,
 		consumertest.NewNop(),
 	)
@@ -90,9 +90,9 @@ func TestFactoryBadAuthType(t *testing.T) {
 			},
 		},
 	}
-	_, err := factory.CreateMetricsReceiver(
+	_, err := factory.CreateMetrics(
 		context.Background(),
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		cfg,
 		consumertest.NewNop(),
 	)
@@ -113,7 +113,7 @@ func TestRestClientErr(t *testing.T) {
 
 func tlsConfig() *Config {
 	return &Config{
-		ScraperControllerSettings: scraperhelper.ScraperControllerSettings{
+		ControllerConfig: scraperhelper.ControllerConfig{
 			CollectionInterval: 10 * time.Second,
 			InitialDelay:       time.Second,
 		},
@@ -121,7 +121,7 @@ func tlsConfig() *Config {
 			APIConfig: k8sconfig.APIConfig{
 				AuthType: "tls",
 			},
-			TLSSetting: configtls.TLSSetting{
+			Config: configtls.Config{
 				CAFile:   "testdata/testcert.crt",
 				CertFile: "testdata/testcert.crt",
 				KeyFile:  "testdata/testkey.key",
@@ -178,7 +178,7 @@ func TestCustomUnmarshaller(t *testing.T) {
 			args: args{
 				componentParser: confmap.New(),
 				intoCfg: &Config{
-					ScraperControllerSettings: scraperhelper.ScraperControllerSettings{
+					ControllerConfig: scraperhelper.ControllerConfig{
 						CollectionInterval: 10 * time.Second,
 						InitialDelay:       time.Second,
 					},
@@ -189,7 +189,7 @@ func TestCustomUnmarshaller(t *testing.T) {
 				"collection_interval": 20 * time.Second,
 			},
 			result: &Config{
-				ScraperControllerSettings: scraperhelper.ScraperControllerSettings{
+				ControllerConfig: scraperhelper.ControllerConfig{
 					CollectionInterval: 20 * time.Second,
 					InitialDelay:       time.Second,
 				},

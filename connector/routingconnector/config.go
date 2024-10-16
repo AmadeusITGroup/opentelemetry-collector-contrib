@@ -6,7 +6,7 @@ package routingconnector // import "github.com/open-telemetry/opentelemetry-coll
 import (
 	"errors"
 
-	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/pipeline"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -23,13 +23,13 @@ type Config struct {
 	// DefaultPipelines contains the list of pipelines to use when a more specific record can't be
 	// found in the routing table.
 	// Optional.
-	DefaultPipelines []component.ID `mapstructure:"default_pipelines"`
+	DefaultPipelines []pipeline.ID `mapstructure:"default_pipelines"`
 
 	// ErrorMode determines how the processor reacts to errors that occur while processing an OTTL
 	// condition.
 	// Valid values are `ignore` and `propagate`.
 	// `ignore` means the processor ignores errors returned by conditions and continues on to the
-	// next condition. This is the recommended mode. If `ignored` is used and a statement's
+	// next condition. This is the recommended mode. If `ignore` is used and a statement's
 	// condition has an error then the payload will be routed to the default exporter. `propagate`
 	// means the processor returns the error up the pipeline.  This will result in the payload being
 	// dropped from the collector.
@@ -78,5 +78,5 @@ type RoutingTableItem struct {
 	// DefaultPipelines are used, if any.
 	// The routing processor will fail upon the first failure from these pipelines.
 	// Optional.
-	Pipelines []component.ID `mapstructure:"pipelines"`
+	Pipelines []pipeline.ID `mapstructure:"pipelines"`
 }

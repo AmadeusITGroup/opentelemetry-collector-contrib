@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/receiver"
@@ -30,7 +31,7 @@ type collectdReceiver struct {
 	defaultAttrsPrefix string
 	nextConsumer       consumer.Metrics
 	obsrecv            *receiverhelper.ObsReport
-	createSettings     receiver.CreateSettings
+	createSettings     receiver.Settings
 	config             *Config
 }
 
@@ -40,10 +41,7 @@ func newCollectdReceiver(
 	cfg *Config,
 	defaultAttrsPrefix string,
 	nextConsumer consumer.Metrics,
-	createSettings receiver.CreateSettings) (receiver.Metrics, error) {
-	if nextConsumer == nil {
-		return nil, component.ErrNilNextConsumer
-	}
+	createSettings receiver.Settings) (receiver.Metrics, error) {
 
 	r := &collectdReceiver{
 		logger:             logger,
@@ -56,9 +54,9 @@ func newCollectdReceiver(
 }
 
 // Start starts an HTTP server that can process CollectD JSON requests.
-func (cdr *collectdReceiver) Start(_ context.Context, host component.Host) error {
+func (cdr *collectdReceiver) Start(ctx context.Context, host component.Host) error {
 	var err error
-	cdr.server, err = cdr.config.ServerConfig.ToServer(host, cdr.createSettings.TelemetrySettings, cdr)
+	cdr.server, err = cdr.config.ServerConfig.ToServer(ctx, host, cdr.createSettings.TelemetrySettings, cdr)
 	if err != nil {
 		return err
 	}
@@ -72,13 +70,13 @@ func (cdr *collectdReceiver) Start(_ context.Context, host component.Host) error
 	if err != nil {
 		return err
 	}
-	l, err := cdr.config.ServerConfig.ToListener()
+	l, err := cdr.config.ServerConfig.ToListener(ctx)
 	if err != nil {
 		return err
 	}
 	go func() {
 		if err := cdr.server.Serve(l); !errors.Is(err, http.ErrServerClosed) && err != nil {
-			cdr.createSettings.TelemetrySettings.ReportStatus(component.NewFatalErrorEvent(err))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
 		}
 	}()
 	return nil

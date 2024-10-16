@@ -4,9 +4,10 @@ status:
   class: exporter
   stability:
     beta: [traces, logs]
-  distributions: [contrib, observiq]
+    development: [metrics]
+  distributions: [contrib]
   codeowners:
-    active: [JaredTan95]
+    active: [JaredTan95, carsonip, lahsivjar]
 
 tests:
   config:

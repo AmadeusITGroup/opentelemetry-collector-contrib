@@ -26,10 +26,12 @@ func TestCreateMetricsExporterError(t *testing.T) {
 	cfg := &Config{
 		FormatType: formatTypeJSON,
 	}
-	_, err := createMetricsExporter(
+	e, err := createMetricsExporter(
 		context.Background(),
-		exportertest.NewNopCreateSettings(),
+		exportertest.NewNopSettings(),
 		cfg)
+	require.NoError(t, err)
+	err = e.Start(context.Background(), componenttest.NewNopHost())
 	assert.Error(t, err)
 }
 
@@ -40,7 +42,7 @@ func TestCreateMetricsExporter(t *testing.T) {
 	}
 	exp, err := createMetricsExporter(
 		context.Background(),
-		exportertest.NewNopCreateSettings(),
+		exportertest.NewNopSettings(),
 		cfg)
 	assert.NoError(t, err)
 	require.NotNil(t, exp)
@@ -54,7 +56,7 @@ func TestCreateTracesExporter(t *testing.T) {
 	}
 	exp, err := createTracesExporter(
 		context.Background(),
-		exportertest.NewNopCreateSettings(),
+		exportertest.NewNopSettings(),
 		cfg)
 	assert.NoError(t, err)
 	require.NotNil(t, exp)
@@ -65,10 +67,12 @@ func TestCreateTracesExporterError(t *testing.T) {
 	cfg := &Config{
 		FormatType: formatTypeJSON,
 	}
-	_, err := createTracesExporter(
+	e, err := createTracesExporter(
 		context.Background(),
-		exportertest.NewNopCreateSettings(),
+		exportertest.NewNopSettings(),
 		cfg)
+	require.NoError(t, err)
+	err = e.Start(context.Background(), componenttest.NewNopHost())
 	assert.Error(t, err)
 }
 
@@ -79,7 +83,7 @@ func TestCreateLogsExporter(t *testing.T) {
 	}
 	exp, err := createLogsExporter(
 		context.Background(),
-		exportertest.NewNopCreateSettings(),
+		exportertest.NewNopSettings(),
 		cfg)
 	assert.NoError(t, err)
 	require.NotNil(t, exp)
@@ -90,10 +94,12 @@ func TestCreateLogsExporterError(t *testing.T) {
 	cfg := &Config{
 		FormatType: formatTypeJSON,
 	}
-	_, err := createLogsExporter(
+	e, err := createLogsExporter(
 		context.Background(),
-		exportertest.NewNopCreateSettings(),
+		exportertest.NewNopSettings(),
 		cfg)
+	require.NoError(t, err)
+	err = e.Start(context.Background(), componenttest.NewNopHost())
 	assert.Error(t, err)
 }
 
@@ -118,7 +124,7 @@ func TestNewFileWriter(t *testing.T) {
 			validate: func(t *testing.T, writer *fileWriter) {
 				assert.Equal(t, 5*time.Second, writer.flushInterval)
 				_, ok := writer.file.(*bufferedWriteCloser)
-				assert.Equal(t, true, ok)
+				assert.True(t, ok)
 			},
 		},
 		{
@@ -133,7 +139,7 @@ func TestNewFileWriter(t *testing.T) {
 			},
 			validate: func(t *testing.T, writer *fileWriter) {
 				logger, ok := writer.file.(*lumberjack.Logger)
-				assert.Equal(t, true, ok)
+				assert.True(t, ok)
 				assert.Equal(t, defaultMaxBackups, logger.MaxBackups)
 			},
 		},
@@ -152,17 +158,17 @@ func TestNewFileWriter(t *testing.T) {
 			},
 			validate: func(t *testing.T, writer *fileWriter) {
 				logger, ok := writer.file.(*lumberjack.Logger)
-				assert.Equal(t, true, ok)
+				assert.True(t, ok)
 				assert.Equal(t, 3, logger.MaxBackups)
 				assert.Equal(t, 30, logger.MaxSize)
 				assert.Equal(t, 100, logger.MaxAge)
-				assert.Equal(t, true, logger.LocalTime)
+				assert.True(t, logger.LocalTime)
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := newFileWriter(tt.args.cfg.Path, tt.args.cfg.Rotation, tt.args.cfg.FlushInterval, nil)
+			got, err := newFileWriter(tt.args.cfg.Path, tt.args.cfg.Append, tt.args.cfg.Rotation, tt.args.cfg.FlushInterval, nil)
 			defer func() {
 				assert.NoError(t, got.file.Close())
 			}()

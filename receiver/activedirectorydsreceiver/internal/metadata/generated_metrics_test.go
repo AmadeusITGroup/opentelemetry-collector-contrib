@@ -13,40 +13,44 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-type testConfigCollection int
+type testDataSet int
 
 const (
-	testSetDefault testConfigCollection = iota
-	testSetAll
-	testSetNone
+	testDataSetDefault testDataSet = iota
+	testDataSetAll
+	testDataSetNone
 )
 
 func TestMetricsBuilder(t *testing.T) {
 	tests := []struct {
-		name      string
-		configSet testConfigCollection
+		name        string
+		metricsSet  testDataSet
+		resAttrsSet testDataSet
+		expectEmpty bool
 	}{
 		{
-			name:      "default",
-			configSet: testSetDefault,
+			name: "default",
 		},
 		{
-			name:      "all_set",
-			configSet: testSetAll,
+			name:        "all_set",
+			metricsSet:  testDataSetAll,
+			resAttrsSet: testDataSetAll,
 		},
 		{
-			name:      "none_set",
-			configSet: testSetNone,
+			name:        "none_set",
+			metricsSet:  testDataSetNone,
+			resAttrsSet: testDataSetNone,
+			expectEmpty: true,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			start := pcommon.Timestamp(1_000_000_000)
 			ts := pcommon.Timestamp(1_000_001_000)
 			observedZapCore, observedLogs := observer.New(zap.WarnLevel)
-			settings := receivertest.NewNopCreateSettings()
+			settings := receivertest.NewNopSettings()
 			settings.Logger = zap.New(observedZapCore)
-			mb := NewMetricsBuilder(loadMetricsBuilderConfig(t, test.name), settings, WithStartTime(start))
+			mb := NewMetricsBuilder(loadMetricsBuilderConfig(t, tt.name), settings, WithStartTime(start))
 
 			expectedWarnings := 0
 
@@ -130,7 +134,7 @@ func TestMetricsBuilder(t *testing.T) {
 			res := pcommon.NewResource()
 			metrics := mb.Emit(WithResource(res))
 
-			if test.configSet == testSetNone {
+			if tt.expectEmpty {
 				assert.Equal(t, 0, metrics.ResourceMetrics().Len())
 				return
 			}
@@ -140,10 +144,10 @@ func TestMetricsBuilder(t *testing.T) {
 			assert.Equal(t, res, rm.Resource())
 			assert.Equal(t, 1, rm.ScopeMetrics().Len())
 			ms := rm.ScopeMetrics().At(0).Metrics()
-			if test.configSet == testSetDefault {
+			if tt.metricsSet == testDataSetDefault {
 				assert.Equal(t, defaultMetricsCount, ms.Len())
 			}
-			if test.configSet == testSetAll {
+			if tt.metricsSet == testDataSetAll {
 				assert.Equal(t, allMetricsCount, ms.Len())
 			}
 			validatedMetrics := make(map[string]bool)
@@ -156,13 +160,13 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of binds per second serviced by this domain controller.", ms.At(i).Description())
 					assert.Equal(t, "{binds}/s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 					attrVal, ok := dp.Attributes().Get("type")
 					assert.True(t, ok)
 					assert.EqualValues(t, "server", attrVal.Str())
@@ -185,13 +189,13 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of successful LDAP binds per second.", ms.At(i).Description())
 					assert.Equal(t, "{binds}/s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 				case "active_directory.ds.ldap.client.session.count":
 					assert.False(t, validatedMetrics["active_directory.ds.ldap.client.session.count"], "Found a duplicate in the metrics slice: active_directory.ds.ldap.client.session.count")
 					validatedMetrics["active_directory.ds.ldap.client.session.count"] = true
@@ -199,7 +203,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of connected LDAP client sessions.", ms.At(i).Description())
 					assert.Equal(t, "{sessions}", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -213,13 +217,13 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of LDAP searches per second.", ms.At(i).Description())
 					assert.Equal(t, "{searches}/s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 				case "active_directory.ds.name_cache.hit_rate":
 					assert.False(t, validatedMetrics["active_directory.ds.name_cache.hit_rate"], "Found a duplicate in the metrics slice: active_directory.ds.name_cache.hit_rate")
 					validatedMetrics["active_directory.ds.name_cache.hit_rate"] = true
@@ -231,7 +235,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 				case "active_directory.ds.notification.queued":
 					assert.False(t, validatedMetrics["active_directory.ds.notification.queued"], "Found a duplicate in the metrics slice: active_directory.ds.notification.queued")
 					validatedMetrics["active_directory.ds.notification.queued"] = true
@@ -239,7 +243,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of pending update notifications that have been queued to push to clients.", ms.At(i).Description())
 					assert.Equal(t, "{notifications}", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -253,13 +257,13 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of operations performed per second.", ms.At(i).Description())
 					assert.Equal(t, "{operations}/s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 					attrVal, ok := dp.Attributes().Get("type")
 					assert.True(t, ok)
 					assert.EqualValues(t, "read", attrVal.Str())
@@ -270,7 +274,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The amount of network data transmitted by the Directory Replication Agent.", ms.At(i).Description())
 					assert.Equal(t, "By", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -290,13 +294,13 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of objects transmitted by the Directory Replication Agent per second.", ms.At(i).Description())
 					assert.Equal(t, "{objects}/s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 					attrVal, ok := dp.Attributes().Get("direction")
 					assert.True(t, ok)
 					assert.EqualValues(t, "sent", attrVal.Str())
@@ -307,7 +311,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of pending replication operations for the Directory Replication Agent.", ms.At(i).Description())
 					assert.Equal(t, "{operations}", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -321,13 +325,13 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of properties transmitted by the Directory Replication Agent per second.", ms.At(i).Description())
 					assert.Equal(t, "{properties}/s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 					attrVal, ok := dp.Attributes().Get("direction")
 					assert.True(t, ok)
 					assert.EqualValues(t, "sent", attrVal.Str())
@@ -338,7 +342,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of objects remaining until the full sync completes for the Directory Replication Agent.", ms.At(i).Description())
 					assert.Equal(t, "{objects}", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -352,7 +356,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of sync requests made by the Directory Replication Agent.", ms.At(i).Description())
 					assert.Equal(t, "{requests}", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -369,13 +373,13 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of values transmitted by the Directory Replication Agent per second.", ms.At(i).Description())
 					assert.Equal(t, "{values}/s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 					attrVal, ok := dp.Attributes().Get("direction")
 					assert.True(t, ok)
 					assert.EqualValues(t, "sent", attrVal.Str())
@@ -389,7 +393,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of security descriptor propagation events that are queued for processing.", ms.At(i).Description())
 					assert.Equal(t, "{events}", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -403,13 +407,13 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The rate of sub-operations performed.", ms.At(i).Description())
 					assert.Equal(t, "{suboperations}/s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
 					assert.Equal(t, ts, dp.Timestamp())
 					assert.Equal(t, pmetric.NumberDataPointValueTypeDouble, dp.ValueType())
-					assert.Equal(t, float64(1), dp.DoubleValue())
+					assert.InDelta(t, float64(1), dp.DoubleValue(), 0.01)
 					attrVal, ok := dp.Attributes().Get("type")
 					assert.True(t, ok)
 					assert.EqualValues(t, "security_descriptor_propagations_event", attrVal.Str())
@@ -420,7 +424,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of threads in use by the directory service.", ms.At(i).Description())
 					assert.Equal(t, "{threads}", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())

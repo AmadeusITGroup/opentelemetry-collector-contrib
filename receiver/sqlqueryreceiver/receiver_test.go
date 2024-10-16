@@ -19,15 +19,15 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/sqlquery"
 )
 
-func TestCreateLogsReceiver(t *testing.T) {
+func TestCreateLogs(t *testing.T) {
 	createReceiver := createLogsReceiverFunc(fakeDBConnect, mkFakeClient)
 	ctx := context.Background()
 	receiver, err := createReceiver(
 		ctx,
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		&Config{
 			Config: sqlquery.Config{
-				ScraperControllerSettings: scraperhelper.ScraperControllerSettings{
+				ControllerConfig: scraperhelper.ControllerConfig{
 					CollectionInterval: 10 * time.Second,
 				},
 				Driver:     "mydriver",
@@ -45,17 +45,18 @@ func TestCreateLogsReceiver(t *testing.T) {
 	require.NoError(t, err)
 	err = receiver.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
+	require.NoError(t, receiver.Shutdown(ctx))
 }
 
-func TestCreateMetricsReceiver(t *testing.T) {
+func TestCreateMetrics(t *testing.T) {
 	createReceiver := createMetricsReceiverFunc(fakeDBConnect, mkFakeClient)
 	ctx := context.Background()
 	receiver, err := createReceiver(
 		ctx,
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		&Config{
 			Config: sqlquery.Config{
-				ScraperControllerSettings: scraperhelper.ScraperControllerSettings{
+				ControllerConfig: scraperhelper.ControllerConfig{
 					CollectionInterval: 10 * time.Second,
 					InitialDelay:       time.Second,
 				},
@@ -75,6 +76,7 @@ func TestCreateMetricsReceiver(t *testing.T) {
 	require.NoError(t, err)
 	err = receiver.Start(ctx, componenttest.NewNopHost())
 	require.NoError(t, err)
+	require.NoError(t, receiver.Shutdown(ctx))
 }
 
 func fakeDBConnect(string, string) (*sql.DB, error) {

@@ -20,6 +20,11 @@ import (
 )
 
 func TestValidate(t *testing.T) {
+	clientConfigInvalidEndpoint := confighttp.NewDefaultClientConfig()
+	clientConfigInvalidEndpoint.Endpoint = "invalid://endpoint:  12efg"
+
+	clientConfig := confighttp.NewDefaultClientConfig()
+	clientConfig.Endpoint = defaultEndpoint
 	testCases := []struct {
 		desc        string
 		cfg         *Config
@@ -28,20 +33,16 @@ func TestValidate(t *testing.T) {
 		{
 			desc: "invalid endpoint",
 			cfg: &Config{
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "invalid://endpoint:  12efg",
-				},
-				ScraperControllerSettings: scraperhelper.NewDefaultScraperControllerSettings(metadata.Type),
+				ClientConfig:     clientConfigInvalidEndpoint,
+				ControllerConfig: scraperhelper.NewDefaultControllerConfig(),
 			},
 			expectedErr: fmt.Errorf("\"endpoint\" must be in the form of <scheme>://<hostname>:<port>: %w", errors.New(`parse "invalid://endpoint:  12efg": invalid port ":  12efg" after host`)),
 		},
 		{
 			desc: "valid config",
 			cfg: &Config{
-				ClientConfig: confighttp.ClientConfig{
-					Endpoint: defaultEndpoint,
-				},
-				ScraperControllerSettings: scraperhelper.NewDefaultScraperControllerSettings(metadata.Type),
+				ClientConfig:     clientConfig,
+				ControllerConfig: scraperhelper.NewDefaultControllerConfig(),
 			},
 			expectedErr: nil,
 		},
@@ -69,7 +70,7 @@ func TestLoadConfig(t *testing.T) {
 
 	sub, err := cm.Sub(component.NewIDWithName(metadata.Type, "").String())
 	require.NoError(t, err)
-	require.NoError(t, component.UnmarshalConfig(sub, cfg))
+	require.NoError(t, sub.Unmarshal(cfg))
 
 	expected := factory.CreateDefaultConfig().(*Config)
 	expected.Endpoint = "http://localhost:8081"

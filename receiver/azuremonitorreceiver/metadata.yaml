@@ -3,10 +3,10 @@ type: azuremonitor
 status:
   class: receiver
   stability:
-    development: [metrics]
+    alpha: [metrics]
   distributions: [contrib]
   codeowners:
-    active: [altuner, codeboten]
+    active: [nslaughter, codeboten]
 
 resource_attributes:
   azuremonitor.tenant_id:

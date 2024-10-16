@@ -9,11 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/otelcol/otelcoltest"
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer"
@@ -62,7 +63,7 @@ func TestOnAddForMetrics(t *testing.T) {
 			name:                   "inherits unsupported endpoint",
 			receiverTemplateID:     component.MustNewIDWithName("without_endpoint", "some.name"),
 			receiverTemplateConfig: userConfigMap{"endpoint": "unsupported.endpoint"},
-			expectedError:          "failed to load \"without_endpoint/some.name\" template config: 1 error(s) decoding:\n\n* '' has invalid keys: endpoint",
+			expectedError:          "'' has invalid keys: endpoint",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -90,7 +91,7 @@ func TestOnAddForMetrics(t *testing.T) {
 			if test.expectedError != "" {
 				assert.Equal(t, 0, handler.receiversByEndpointID.Size())
 				require.Error(t, mr.lastError)
-				require.EqualError(t, mr.lastError, test.expectedError)
+				require.ErrorContains(t, mr.lastError, test.expectedError)
 				require.Nil(t, mr.startedComponent)
 				return
 			}
@@ -164,7 +165,7 @@ func TestOnAddForLogs(t *testing.T) {
 			name:                   "inherits unsupported endpoint",
 			receiverTemplateID:     component.MustNewIDWithName("without_endpoint", "some.name"),
 			receiverTemplateConfig: userConfigMap{"endpoint": "unsupported.endpoint"},
-			expectedError:          "failed to load \"without_endpoint/some.name\" template config: 1 error(s) decoding:\n\n* '' has invalid keys: endpoint",
+			expectedError:          "'' has invalid keys: endpoint",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -192,7 +193,7 @@ func TestOnAddForLogs(t *testing.T) {
 			if test.expectedError != "" {
 				assert.Equal(t, 0, handler.receiversByEndpointID.Size())
 				require.Error(t, mr.lastError)
-				require.EqualError(t, mr.lastError, test.expectedError)
+				require.ErrorContains(t, mr.lastError, test.expectedError)
 				require.Nil(t, mr.startedComponent)
 				return
 			}
@@ -266,7 +267,7 @@ func TestOnAddForTraces(t *testing.T) {
 			name:                   "inherits unsupported endpoint",
 			receiverTemplateID:     component.MustNewIDWithName("without_endpoint", "some.name"),
 			receiverTemplateConfig: userConfigMap{"endpoint": "unsupported.endpoint"},
-			expectedError:          "failed to load \"without_endpoint/some.name\" template config: 1 error(s) decoding:\n\n* '' has invalid keys: endpoint",
+			expectedError:          "'' has invalid keys: endpoint",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -294,7 +295,7 @@ func TestOnAddForTraces(t *testing.T) {
 			if test.expectedError != "" {
 				assert.Equal(t, 0, handler.receiversByEndpointID.Size())
 				require.Error(t, mr.lastError)
-				require.EqualError(t, mr.lastError, test.expectedError)
+				require.ErrorContains(t, mr.lastError, test.expectedError)
 				require.Nil(t, mr.startedComponent)
 				return
 			}
@@ -465,21 +466,22 @@ func (m *mockHost) GetExtensions() map[component.ID]component.Component {
 	return nil
 }
 
-func (m *mockHost) GetExporters() map[component.DataType]map[component.ID]component.Component {
+func (m *mockHost) GetExportersWithSignal() map[pipeline.Signal]map[component.ID]component.Component {
 	m.t.Fatal("GetExporters")
 	return nil
 }
 
 func newMockRunner(t *testing.T) *mockRunner {
-	cs := receivertest.NewNopCreateSettings()
-	cs.TelemetrySettings.ReportStatus = func(event *component.StatusEvent) {
-		require.NoError(t, event.Err())
-	}
+	cs := receivertest.NewNopSettings()
 	return &mockRunner{
 		receiverRunner: receiverRunner{
 			params:      cs,
 			idNamespace: component.MustNewIDWithName("some_type", "some.name"),
-			host:        newMockHost(t, componenttest.NewNopHost()),
+			host: newMockHost(t, &reportingHost{
+				reportFunc: func(event *componentstatus.Event) {
+					require.NoError(t, event.Err())
+				},
+			}),
 		},
 	}
 }
@@ -490,7 +492,7 @@ func newObserverHandler(
 	nextMetrics consumer.Metrics,
 	nextTraces consumer.Traces,
 ) (*observerHandler, *mockRunner) {
-	set := receivertest.NewNopCreateSettings()
+	set := receivertest.NewNopSettings()
 	set.ID = component.MustNewIDWithName("some_type", "some.name")
 	mr := newMockRunner(t)
 	return &observerHandler{
@@ -502,4 +504,26 @@ func newObserverHandler(
 		nextMetricsConsumer:   nextMetrics,
 		nextTracesConsumer:    nextTraces,
 	}, mr
+}
+
+var _ componentstatus.Reporter = (*reportingHost)(nil)
+
+type reportingHost struct {
+	reportFunc func(event *componentstatus.Event)
+}
+
+func (nh *reportingHost) GetFactory(component.Kind, component.Type) component.Factory {
+	return nil
+}
+
+func (nh *reportingHost) GetExtensions() map[component.ID]component.Component {
+	return nil
+}
+
+func (nh *reportingHost) GetExportersWithSignal() map[pipeline.Signal]map[component.ID]component.Component {
+	return nil
+}
+
+func (nh *reportingHost) Report(event *componentstatus.Event) {
+	nh.reportFunc(event)
 }

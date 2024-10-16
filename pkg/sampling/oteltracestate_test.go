@@ -4,7 +4,6 @@
 package sampling
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -88,7 +87,7 @@ func TestOpenTelemetryTraceStateRValuePValue(t *testing.T) {
 	require.Equal(t, "", otts.RValue())
 
 	// The error is oblivious to the old r-value, but that's ok.
-	require.Contains(t, err.Error(), "14 hex digits")
+	require.ErrorContains(t, err, "14 hex digits")
 
 	require.Equal(t, []KV{{"p", "2"}}, otts.ExtraValues())
 
@@ -105,7 +104,7 @@ func TestOpenTelemetryTraceStateTValueUpdate(t *testing.T) {
 	require.NotEqual(t, "", otts.RValue())
 
 	th, _ := TValueToThreshold("3")
-	require.NoError(t, otts.UpdateTValueWithSampling(th, "3"))
+	require.NoError(t, otts.UpdateTValueWithSampling(th))
 
 	require.Equal(t, "3", otts.TValue())
 	tv, hasTv := otts.TValueThreshold()
@@ -126,7 +125,7 @@ func TestOpenTelemetryTraceStateRTUpdate(t *testing.T) {
 	require.True(t, otts.HasAnyValue())
 
 	th, _ := TValueToThreshold("3")
-	require.NoError(t, otts.UpdateTValueWithSampling(th, "3"))
+	require.NoError(t, otts.UpdateTValueWithSampling(th))
 	otts.SetRValue(must(RValueToRandomness("00000000000003")))
 
 	const updated = "rv:00000000000003;th:3;a:b"
@@ -233,7 +232,7 @@ func TestParseOpenTelemetryTraceState(t *testing.T) {
 			otts, err := NewOpenTelemetryTraceState(test.in)
 
 			if test.expectErr != nil {
-				require.True(t, errors.Is(err, test.expectErr), "%q: not expecting %v wanted %v", test.in, err, test.expectErr)
+				require.ErrorIs(t, err, test.expectErr, "%q: not expecting %v wanted %v", test.in, err, test.expectErr)
 			} else {
 				require.NoError(t, err)
 			}
@@ -329,7 +328,7 @@ func TestUpdateTValueWithSampling(t *testing.T) {
 			newTh, err := ProbabilityToThreshold(test.prob)
 			require.NoError(t, err)
 
-			upErr := otts.UpdateTValueWithSampling(newTh, newTh.TValue())
+			upErr := otts.UpdateTValueWithSampling(newTh)
 
 			require.Equal(t, test.updateErr, upErr)
 

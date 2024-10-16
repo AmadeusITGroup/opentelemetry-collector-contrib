@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/localhostgate"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata"
 )
 
@@ -51,16 +51,6 @@ func logDeprecation(logger *zap.Logger) {
 	})
 }
 
-// nolint
-var protoGate = featuregate.GlobalRegistry().MustRegister(
-	"receiver.jaegerreceiver.replaceThriftWithProto",
-	featuregate.StageStable,
-	featuregate.WithRegisterDescription(
-		"When enabled, the jaegerreceiver will use Proto-gen over Thrift-gen.",
-	),
-	featuregate.WithRegisterToVersion("0.92.0"),
-)
-
 // NewFactory creates a new Jaeger receiver factory.
 func NewFactory() receiver.Factory {
 	return receiver.NewFactory(
@@ -74,20 +64,20 @@ func createDefaultConfig() component.Config {
 	return &Config{
 		Protocols: Protocols{
 			GRPC: &configgrpc.ServerConfig{
-				NetAddr: confignet.NetAddr{
-					Endpoint:  localhostgate.EndpointForPort(defaultGRPCPort),
-					Transport: "tcp",
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  testutil.EndpointForPort(defaultGRPCPort),
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 			ThriftHTTP: &confighttp.ServerConfig{
-				Endpoint: localhostgate.EndpointForPort(defaultHTTPPort),
+				Endpoint: testutil.EndpointForPort(defaultHTTPPort),
 			},
 			ThriftBinary: &ProtocolUDP{
-				Endpoint:        localhostgate.EndpointForPort(defaultThriftBinaryPort),
+				Endpoint:        testutil.EndpointForPort(defaultThriftBinaryPort),
 				ServerConfigUDP: defaultServerConfigUDP(),
 			},
 			ThriftCompact: &ProtocolUDP{
-				Endpoint:        localhostgate.EndpointForPort(defaultThriftCompactPort),
+				Endpoint:        testutil.EndpointForPort(defaultThriftCompactPort),
 				ServerConfigUDP: defaultServerConfigUDP(),
 			},
 		},
@@ -97,7 +87,7 @@ func createDefaultConfig() component.Config {
 // createTracesReceiver creates a trace receiver based on provided config.
 func createTracesReceiver(
 	_ context.Context,
-	set receiver.CreateSettings,
+	set receiver.Settings,
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {

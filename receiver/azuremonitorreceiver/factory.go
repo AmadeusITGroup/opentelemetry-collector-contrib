@@ -32,23 +32,24 @@ func NewFactory() receiver.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	cfg := scraperhelper.NewDefaultScraperControllerSettings(metadata.Type)
+	cfg := scraperhelper.NewDefaultControllerConfig()
 	cfg.CollectionInterval = defaultCollectionInterval
 
 	return &Config{
-		ScraperControllerSettings:        cfg,
-		MetricsBuilderConfig:             metadata.DefaultMetricsBuilderConfig(),
-		CacheResources:                   24 * 60 * 60,
-		CacheResourcesDefinitions:        24 * 60 * 60,
-		MaximumNumberOfMetricsInACall:    20,
-		Services:                         monitorServices,
-		Authentication:                   servicePrincipal,
-		Cloud:                            defaultCloud,
-		MaximumNumberOfDimensionsInACall: 10,
+		ControllerConfig:                  cfg,
+		MetricsBuilderConfig:              metadata.DefaultMetricsBuilderConfig(),
+		CacheResources:                    24 * 60 * 60,
+		CacheResourcesDefinitions:         24 * 60 * 60,
+		MaximumNumberOfMetricsInACall:     20,
+		MaximumNumberOfRecordsPerResource: 10,
+		MaximumNumberOfDimensionsInACall:  10,
+		Services:                          monitorServices,
+		Authentication:                    servicePrincipal,
+		Cloud:                             defaultCloud,
 	}
 }
 
-func createMetricsReceiver(_ context.Context, params receiver.CreateSettings, rConf component.Config, consumer consumer.Metrics) (receiver.Metrics, error) {
+func createMetricsReceiver(_ context.Context, params receiver.Settings, rConf component.Config, consumer consumer.Metrics) (receiver.Metrics, error) {
 	cfg, ok := rConf.(*Config)
 	if !ok {
 		return nil, errConfigNotAzureMonitor
@@ -56,17 +57,16 @@ func createMetricsReceiver(_ context.Context, params receiver.CreateSettings, rC
 
 	var scraper scraperhelper.Scraper
 	var err error
-	if cfg.UseBatchApi {
+	if cfg.UseBatchAPI {
 		azureBatchScraper := newBatchScraper(cfg, params)
-		scraper, err = scraperhelper.NewScraper(metadata.Type.String(), azureBatchScraper.scrape, scraperhelper.WithStart(azureBatchScraper.start))
+		scraper, err = scraperhelper.NewScraper(metadata.Type, azureBatchScraper.scrape, scraperhelper.WithStart(azureBatchScraper.start))
 	} else {
 		azureScraper := newScraper(cfg, params)
-		scraper, err = scraperhelper.NewScraper(metadata.Type.String(), azureScraper.scrape, scraperhelper.WithStart(azureScraper.start))
+		scraper, err = scraperhelper.NewScraper(metadata.Type, azureScraper.scrape, scraperhelper.WithStart(azureScraper.start))
 	}
-
 	if err != nil {
 		return nil, err
 	}
 
-	return scraperhelper.NewScraperControllerReceiver(&cfg.ScraperControllerSettings, params, consumer, scraperhelper.AddScraper(scraper))
+	return scraperhelper.NewScraperControllerReceiver(&cfg.ControllerConfig, params, consumer, scraperhelper.AddScraper(scraper))
 }

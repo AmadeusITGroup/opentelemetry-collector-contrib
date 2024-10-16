@@ -13,40 +13,53 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-type testConfigCollection int
+type testDataSet int
 
 const (
-	testSetDefault testConfigCollection = iota
-	testSetAll
-	testSetNone
+	testDataSetDefault testDataSet = iota
+	testDataSetAll
+	testDataSetNone
 )
 
 func TestMetricsBuilder(t *testing.T) {
 	tests := []struct {
-		name      string
-		configSet testConfigCollection
+		name        string
+		metricsSet  testDataSet
+		resAttrsSet testDataSet
+		expectEmpty bool
 	}{
 		{
-			name:      "default",
-			configSet: testSetDefault,
+			name: "default",
 		},
 		{
-			name:      "all_set",
-			configSet: testSetAll,
+			name:        "all_set",
+			metricsSet:  testDataSetAll,
+			resAttrsSet: testDataSetAll,
 		},
 		{
-			name:      "none_set",
-			configSet: testSetNone,
+			name:        "none_set",
+			metricsSet:  testDataSetNone,
+			resAttrsSet: testDataSetNone,
+			expectEmpty: true,
+		},
+		{
+			name:        "filter_set_include",
+			resAttrsSet: testDataSetAll,
+		},
+		{
+			name:        "filter_set_exclude",
+			resAttrsSet: testDataSetAll,
+			expectEmpty: true,
 		},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			start := pcommon.Timestamp(1_000_000_000)
 			ts := pcommon.Timestamp(1_000_001_000)
 			observedZapCore, observedLogs := observer.New(zap.WarnLevel)
-			settings := receivertest.NewNopCreateSettings()
+			settings := receivertest.NewNopSettings()
 			settings.Logger = zap.New(observedZapCore)
-			mb := NewMetricsBuilder(loadMetricsBuilderConfig(t, test.name), settings, WithStartTime(start))
+			mb := NewMetricsBuilder(loadMetricsBuilderConfig(t, tt.name), settings, WithStartTime(start))
 
 			expectedWarnings := 0
 
@@ -174,6 +187,9 @@ func TestMetricsBuilder(t *testing.T) {
 			allMetricsCount++
 			mb.RecordMysqlStatementEventWaitTimeDataPoint(ts, 1, "schema-val", "digest-val", "digest_text-val")
 
+			allMetricsCount++
+			mb.RecordMysqlTableAverageRowLengthDataPoint(ts, 1, "table_name-val", "schema-val")
+
 			defaultMetricsCount++
 			allMetricsCount++
 			mb.RecordMysqlTableIoWaitCountDataPoint(ts, 1, AttributeIoWaitsOperationsDelete, "table_name-val", "schema-val")
@@ -195,6 +211,12 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordMysqlTableLockWaitWriteTimeDataPoint(ts, 1, "schema-val", "table_name-val", AttributeWriteLockTypeAllowWrite)
 
 			allMetricsCount++
+			mb.RecordMysqlTableRowsDataPoint(ts, 1, "table_name-val", "schema-val")
+
+			allMetricsCount++
+			mb.RecordMysqlTableSizeDataPoint(ts, 1, "table_name-val", "schema-val", AttributeTableSizeTypeData)
+
+			allMetricsCount++
 			mb.RecordMysqlTableOpenCacheDataPoint(ts, "1", AttributeCacheStatusHit)
 
 			defaultMetricsCount++
@@ -214,7 +236,7 @@ func TestMetricsBuilder(t *testing.T) {
 			res := rb.Emit()
 			metrics := mb.Emit(WithResource(res))
 
-			if test.configSet == testSetNone {
+			if tt.expectEmpty {
 				assert.Equal(t, 0, metrics.ResourceMetrics().Len())
 				return
 			}
@@ -224,10 +246,10 @@ func TestMetricsBuilder(t *testing.T) {
 			assert.Equal(t, res, rm.Resource())
 			assert.Equal(t, 1, rm.ScopeMetrics().Len())
 			ms := rm.ScopeMetrics().At(0).Metrics()
-			if test.configSet == testSetDefault {
+			if tt.metricsSet == testDataSetDefault {
 				assert.Equal(t, defaultMetricsCount, ms.Len())
 			}
-			if test.configSet == testSetAll {
+			if tt.metricsSet == testDataSetAll {
 				assert.Equal(t, allMetricsCount, ms.Len())
 			}
 			validatedMetrics := make(map[string]bool)
@@ -240,7 +262,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of data pages in the InnoDB buffer pool.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -257,7 +279,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The configured size of the InnoDB buffer pool.", ms.At(i).Description())
 					assert.Equal(t, "By", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -271,7 +293,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of operations on the InnoDB buffer pool.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -288,7 +310,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of requests to flush pages from the InnoDB buffer pool.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -302,7 +324,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of pages in the InnoDB buffer pool.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -319,7 +341,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of bytes in the InnoDB buffer pool.", ms.At(i).Description())
 					assert.Equal(t, "By", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -336,7 +358,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of transmitted bytes between server and clients.", ms.At(i).Description())
 					assert.Equal(t, "By", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -353,7 +375,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of times each type of command has been executed.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -370,7 +392,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of connection attempts (successful or not) to the MySQL server.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -384,7 +406,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "Errors that occur during the client connection process.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -401,7 +423,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of writes to the InnoDB doublewrite buffer.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -418,7 +440,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of requests to various MySQL handlers.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -435,7 +457,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total count of I/O wait events for an index.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -461,7 +483,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total time of I/O wait events for an index.", ms.At(i).Description())
 					assert.Equal(t, "ns", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -487,7 +509,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of joins that perform table scans.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -504,7 +526,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of MySQL locks.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -521,7 +543,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of InnoDB log operations.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -538,7 +560,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of mysqlx connections.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -555,7 +577,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of worker threads available.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -572,7 +594,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of opened resources.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -589,7 +611,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of InnoDB operations.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -606,7 +628,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of InnoDB page operations.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -623,7 +645,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of times each type of prepared statement command has been issued.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -640,7 +662,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of statements executed by the server. This includes only statements sent to the server by clients.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -654,7 +676,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of statements executed by the server.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -668,7 +690,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of slow queries.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -682,7 +704,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of seconds that the replica must lag the source.", ms.At(i).Description())
 					assert.Equal(t, "s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -696,7 +718,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "This field is an indication of how “late” the replica is.", ms.At(i).Description())
 					assert.Equal(t, "s", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -710,7 +732,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of InnoDB row locks.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -727,7 +749,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of InnoDB row operations.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -744,7 +766,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of MySQL sorts.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -761,7 +783,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "Summary of current and recent statement events.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -787,7 +809,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total wait time of the summarized timed events.", ms.At(i).Description())
 					assert.Equal(t, "ns", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -803,6 +825,26 @@ func TestMetricsBuilder(t *testing.T) {
 					attrVal, ok = dp.Attributes().Get("digest_text")
 					assert.True(t, ok)
 					assert.EqualValues(t, "digest_text-val", attrVal.Str())
+				case "mysql.table.average_row_length":
+					assert.False(t, validatedMetrics["mysql.table.average_row_length"], "Found a duplicate in the metrics slice: mysql.table.average_row_length")
+					validatedMetrics["mysql.table.average_row_length"] = true
+					assert.Equal(t, pmetric.MetricTypeSum, ms.At(i).Type())
+					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
+					assert.Equal(t, "The average row length in bytes for a given table.", ms.At(i).Description())
+					assert.Equal(t, "By", ms.At(i).Unit())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
+					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
+					dp := ms.At(i).Sum().DataPoints().At(0)
+					assert.Equal(t, start, dp.StartTimestamp())
+					assert.Equal(t, ts, dp.Timestamp())
+					assert.Equal(t, pmetric.NumberDataPointValueTypeInt, dp.ValueType())
+					assert.Equal(t, int64(1), dp.IntValue())
+					attrVal, ok := dp.Attributes().Get("table")
+					assert.True(t, ok)
+					assert.EqualValues(t, "table_name-val", attrVal.Str())
+					attrVal, ok = dp.Attributes().Get("schema")
+					assert.True(t, ok)
+					assert.EqualValues(t, "schema-val", attrVal.Str())
 				case "mysql.table.io.wait.count":
 					assert.False(t, validatedMetrics["mysql.table.io.wait.count"], "Found a duplicate in the metrics slice: mysql.table.io.wait.count")
 					validatedMetrics["mysql.table.io.wait.count"] = true
@@ -810,7 +852,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total count of I/O wait events for a table.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -833,7 +875,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total time of I/O wait events for a table.", ms.At(i).Description())
 					assert.Equal(t, "ns", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -856,7 +898,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total table lock wait read events.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -879,7 +921,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total table lock wait read events times.", ms.At(i).Description())
 					assert.Equal(t, "ns", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -902,7 +944,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total table lock wait write events.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -925,7 +967,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The total table lock wait write events times.", ms.At(i).Description())
 					assert.Equal(t, "ns", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -941,6 +983,49 @@ func TestMetricsBuilder(t *testing.T) {
 					attrVal, ok = dp.Attributes().Get("kind")
 					assert.True(t, ok)
 					assert.EqualValues(t, "allow_write", attrVal.Str())
+				case "mysql.table.rows":
+					assert.False(t, validatedMetrics["mysql.table.rows"], "Found a duplicate in the metrics slice: mysql.table.rows")
+					validatedMetrics["mysql.table.rows"] = true
+					assert.Equal(t, pmetric.MetricTypeSum, ms.At(i).Type())
+					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
+					assert.Equal(t, "The number of rows for a given table.", ms.At(i).Description())
+					assert.Equal(t, "1", ms.At(i).Unit())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
+					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
+					dp := ms.At(i).Sum().DataPoints().At(0)
+					assert.Equal(t, start, dp.StartTimestamp())
+					assert.Equal(t, ts, dp.Timestamp())
+					assert.Equal(t, pmetric.NumberDataPointValueTypeInt, dp.ValueType())
+					assert.Equal(t, int64(1), dp.IntValue())
+					attrVal, ok := dp.Attributes().Get("table")
+					assert.True(t, ok)
+					assert.EqualValues(t, "table_name-val", attrVal.Str())
+					attrVal, ok = dp.Attributes().Get("schema")
+					assert.True(t, ok)
+					assert.EqualValues(t, "schema-val", attrVal.Str())
+				case "mysql.table.size":
+					assert.False(t, validatedMetrics["mysql.table.size"], "Found a duplicate in the metrics slice: mysql.table.size")
+					validatedMetrics["mysql.table.size"] = true
+					assert.Equal(t, pmetric.MetricTypeSum, ms.At(i).Type())
+					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
+					assert.Equal(t, "The table size in bytes for a given table.", ms.At(i).Description())
+					assert.Equal(t, "By", ms.At(i).Unit())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
+					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
+					dp := ms.At(i).Sum().DataPoints().At(0)
+					assert.Equal(t, start, dp.StartTimestamp())
+					assert.Equal(t, ts, dp.Timestamp())
+					assert.Equal(t, pmetric.NumberDataPointValueTypeInt, dp.ValueType())
+					assert.Equal(t, int64(1), dp.IntValue())
+					attrVal, ok := dp.Attributes().Get("table")
+					assert.True(t, ok)
+					assert.EqualValues(t, "table_name-val", attrVal.Str())
+					attrVal, ok = dp.Attributes().Get("schema")
+					assert.True(t, ok)
+					assert.EqualValues(t, "schema-val", attrVal.Str())
+					attrVal, ok = dp.Attributes().Get("kind")
+					assert.True(t, ok)
+					assert.EqualValues(t, "data", attrVal.Str())
 				case "mysql.table_open_cache":
 					assert.False(t, validatedMetrics["mysql.table_open_cache"], "Found a duplicate in the metrics slice: mysql.table_open_cache")
 					validatedMetrics["mysql.table_open_cache"] = true
@@ -948,7 +1033,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of hits, misses or overflows for open tables cache lookups.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -965,7 +1050,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The state of MySQL threads.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, false, ms.At(i).Sum().IsMonotonic())
+					assert.False(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -982,7 +1067,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of created temporary resources.", ms.At(i).Description())
 					assert.Equal(t, "1", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())
@@ -999,7 +1084,7 @@ func TestMetricsBuilder(t *testing.T) {
 					assert.Equal(t, 1, ms.At(i).Sum().DataPoints().Len())
 					assert.Equal(t, "The number of seconds that the server has been up.", ms.At(i).Description())
 					assert.Equal(t, "s", ms.At(i).Unit())
-					assert.Equal(t, true, ms.At(i).Sum().IsMonotonic())
+					assert.True(t, ms.At(i).Sum().IsMonotonic())
 					assert.Equal(t, pmetric.AggregationTemporalityCumulative, ms.At(i).Sum().AggregationTemporality())
 					dp := ms.At(i).Sum().DataPoints().At(0)
 					assert.Equal(t, start, dp.StartTimestamp())

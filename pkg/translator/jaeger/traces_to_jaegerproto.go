@@ -4,12 +4,10 @@
 package jaeger // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 
 import (
-	"encoding/base64"
-
 	"github.com/jaegertracing/jaeger/model"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	conventions "go.opentelemetry.io/collector/semconv/v1.9.0"
+	conventions "go.opentelemetry.io/collector/semconv/v1.16.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
@@ -17,11 +15,11 @@ import (
 
 // ProtoFromTraces translates internal trace data into the Jaeger Proto for GRPC.
 // Returns slice of translated Jaeger batches and error if translation failed.
-func ProtoFromTraces(td ptrace.Traces) ([]*model.Batch, error) {
+func ProtoFromTraces(td ptrace.Traces) []*model.Batch {
 	resourceSpans := td.ResourceSpans()
 
 	if resourceSpans.Len() == 0 {
-		return nil, nil
+		return nil
 	}
 
 	batches := make([]*model.Batch, 0, resourceSpans.Len())
@@ -33,7 +31,7 @@ func ProtoFromTraces(td ptrace.Traces) ([]*model.Batch, error) {
 		}
 	}
 
-	return batches, nil
+	return batches
 }
 
 func resourceSpansToJaegerProto(rs ptrace.ResourceSpans) *model.Batch {
@@ -125,8 +123,6 @@ func attributeToJaegerProtoTag(key string, attr pcommon.Value) model.KeyValue {
 	tag := model.KeyValue{Key: key}
 	switch attr.Type() {
 	case pcommon.ValueTypeStr:
-		// Jaeger-to-Internal maps binary tags to string attributes and encodes them as
-		// base64 strings. Blindingly attempting to decode base64 seems too much.
 		tag.VType = model.ValueType_STRING
 		tag.VStr = attr.Str()
 	case pcommon.ValueTypeInt:
@@ -139,8 +135,8 @@ func attributeToJaegerProtoTag(key string, attr pcommon.Value) model.KeyValue {
 		tag.VType = model.ValueType_FLOAT64
 		tag.VFloat64 = attr.Double()
 	case pcommon.ValueTypeBytes:
-		tag.VType = model.ValueType_STRING
-		tag.VStr = base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
+		tag.VType = model.ValueType_BINARY
+		tag.VBinary = attr.Bytes().AsRaw()
 	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
 		tag.VType = model.ValueType_STRING
 		tag.VStr = attr.AsString()
@@ -392,7 +388,7 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]model
 	var keyValues []model.KeyValue
 	if ilName := il.Name(); ilName != "" {
 		kv := model.KeyValue{
-			Key:   conventions.OtelLibraryName,
+			Key:   conventions.AttributeOtelScopeName,
 			VStr:  ilName,
 			VType: model.ValueType_STRING,
 		}
@@ -400,7 +396,7 @@ func getTagsFromInstrumentationLibrary(il pcommon.InstrumentationScope) ([]model
 	}
 	if ilVersion := il.Version(); ilVersion != "" {
 		kv := model.KeyValue{
-			Key:   conventions.OtelLibraryVersion,
+			Key:   conventions.AttributeOtelScopeVersion,
 			VStr:  ilVersion,
 			VType: model.ValueType_STRING,
 		}

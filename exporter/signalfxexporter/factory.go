@@ -50,18 +50,18 @@ func createDefaultConfig() component.Config {
 	maxConnCount := defaultMaxConns
 	idleConnTimeout := 30 * time.Second
 	timeout := 10 * time.Second
+	clientConfig := confighttp.NewDefaultClientConfig()
+	clientConfig.Timeout = defaultHTTPTimeout
+	clientConfig.MaxIdleConns = &maxConnCount
+	clientConfig.MaxIdleConnsPerHost = &maxConnCount
+	clientConfig.IdleConnTimeout = &idleConnTimeout
+	clientConfig.HTTP2ReadIdleTimeout = defaultHTTP2ReadIdleTimeout
+	clientConfig.HTTP2PingTimeout = defaultHTTP2PingTimeout
 
 	return &Config{
 		BackOffConfig: configretry.NewDefaultBackOffConfig(),
-		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
-		ClientConfig: confighttp.ClientConfig{
-			Timeout:              defaultHTTPTimeout,
-			MaxIdleConns:         &maxConnCount,
-			MaxIdleConnsPerHost:  &maxConnCount,
-			IdleConnTimeout:      &idleConnTimeout,
-			HTTP2ReadIdleTimeout: defaultHTTP2ReadIdleTimeout,
-			HTTP2PingTimeout:     defaultHTTP2PingTimeout,
-		},
+		QueueSettings: exporterhelper.NewDefaultQueueConfig(),
+		ClientConfig:  clientConfig,
 		AccessTokenPassthroughConfig: splunk.AccessTokenPassthroughConfig{
 			AccessTokenPassthrough: true,
 		},
@@ -82,7 +82,7 @@ func createDefaultConfig() component.Config {
 
 func createTracesExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	eCfg component.Config,
 ) (exporter.Traces, error) {
 	cfg := eCfg.(*Config)
@@ -112,7 +112,7 @@ func createTracesExporter(
 
 func createMetricsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	config component.Config,
 ) (exporter.Metrics, error) {
 	cfg := config.(*Config)
@@ -128,7 +128,7 @@ func createMetricsExporter(
 		cfg,
 		exp.pushMetrics,
 		// explicitly disable since we rely on http.Client timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(cfg.BackOffConfig),
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithStart(exp.start),
@@ -155,7 +155,7 @@ func createMetricsExporter(
 
 func createLogsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Logs, error) {
 	expCfg := cfg.(*Config)
@@ -171,7 +171,7 @@ func createLogsExporter(
 		cfg,
 		exp.pushLogs,
 		// explicitly disable since we rely on http.Client timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(expCfg.BackOffConfig),
 		exporterhelper.WithQueue(expCfg.QueueSettings),
 		exporterhelper.WithStart(exp.startLogs))

@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/localhostgate"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/skywalkingreceiver/internal/metadata"
 )
@@ -47,13 +47,13 @@ func createDefaultConfig() component.Config {
 	return &Config{
 		Protocols: Protocols{
 			GRPC: &configgrpc.ServerConfig{
-				NetAddr: confignet.NetAddr{
-					Endpoint:  localhostgate.EndpointForPort(defaultGRPCPort),
-					Transport: "tcp",
+				NetAddr: confignet.AddrConfig{
+					Endpoint:  testutil.EndpointForPort(defaultGRPCPort),
+					Transport: confignet.TransportTypeTCP,
 				},
 			},
 			HTTP: &confighttp.ServerConfig{
-				Endpoint: localhostgate.EndpointForPort(defaultHTTPPort),
+				Endpoint: testutil.EndpointForPort(defaultHTTPPort),
 			},
 		},
 	}
@@ -62,7 +62,7 @@ func createDefaultConfig() component.Config {
 // createTracesReceiver creates a trace receiver based on provided config.
 func createTracesReceiver(
 	_ context.Context,
-	set receiver.CreateSettings,
+	set receiver.Settings,
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
@@ -90,7 +90,7 @@ func createTracesReceiver(
 // createMetricsReceiver creates a metrics receiver based on provided config.
 func createMetricsReceiver(
 	_ context.Context,
-	set receiver.CreateSettings,
+	set receiver.Settings,
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (receiver.Metrics, error) {

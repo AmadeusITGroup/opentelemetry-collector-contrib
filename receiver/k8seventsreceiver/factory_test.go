@@ -40,7 +40,7 @@ func TestCreateReceiver(t *testing.T) {
 
 	// Fails with bad K8s Config.
 	r, err := createLogsReceiver(
-		context.Background(), receivertest.NewNopCreateSettings(),
+		context.Background(), receivertest.NewNopSettings(),
 		rCfg, consumertest.NewNop(),
 	)
 	require.NoError(t, err)
@@ -48,15 +48,16 @@ func TestCreateReceiver(t *testing.T) {
 	assert.Error(t, err)
 
 	// Override for test.
-	rCfg.makeClient = func(apiConf k8sconfig.APIConfig) (k8s.Interface, error) {
+	rCfg.makeClient = func(k8sconfig.APIConfig) (k8s.Interface, error) {
 		return fake.NewSimpleClientset(), nil
 	}
 	r, err = createLogsReceiver(
 		context.Background(),
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		rCfg, consumertest.NewNop(),
 	)
 	require.NoError(t, err)
 	err = r.Start(context.Background(), componenttest.NewNopHost())
 	assert.NoError(t, err)
+	require.NoError(t, r.Shutdown(context.Background()))
 }

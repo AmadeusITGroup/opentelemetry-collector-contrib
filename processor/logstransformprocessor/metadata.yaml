@@ -4,7 +4,7 @@ status:
   class: processor
   stability:
     development: [logs]
-  distributions: [observiq, splunk, sumo]
+  distributions: []
   codeowners:
     active: [djaglowski, dehaansa]
 

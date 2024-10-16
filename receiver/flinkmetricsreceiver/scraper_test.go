@@ -33,6 +33,18 @@ var (
 )
 
 func TestScraperStart(t *testing.T) {
+	clientConfigNoCA := confighttp.NewDefaultClientConfig()
+	clientConfigNoCA.Endpoint = defaultEndpoint
+	clientConfigNoCA.TLSSetting = configtls.ClientConfig{
+		Config: configtls.Config{
+			CAFile: "/non/existent",
+		},
+	}
+
+	clientConfig := confighttp.NewDefaultClientConfig()
+	clientConfig.TLSSetting = configtls.ClientConfig{}
+	clientConfig.Endpoint = defaultEndpoint
+
 	testcases := []struct {
 		desc        string
 		scraper     *flinkmetricsScraper
@@ -42,14 +54,7 @@ func TestScraperStart(t *testing.T) {
 			desc: "Bad Config",
 			scraper: &flinkmetricsScraper{
 				cfg: &Config{
-					ClientConfig: confighttp.ClientConfig{
-						Endpoint: defaultEndpoint,
-						TLSSetting: configtls.TLSClientSetting{
-							TLSSetting: configtls.TLSSetting{
-								CAFile: "/non/existent",
-							},
-						},
-					},
+					ClientConfig: clientConfigNoCA,
 				},
 				settings: componenttest.NewNopTelemetrySettings(),
 			},
@@ -59,10 +64,7 @@ func TestScraperStart(t *testing.T) {
 			desc: "Valid Config",
 			scraper: &flinkmetricsScraper{
 				cfg: &Config{
-					ClientConfig: confighttp.ClientConfig{
-						TLSSetting: configtls.TLSClientSetting{},
-						Endpoint:   defaultEndpoint,
-					},
+					ClientConfig: clientConfig,
 				},
 				settings: componenttest.NewNopTelemetrySettings(),
 			},
@@ -151,7 +153,7 @@ func TestScraperScrape(t *testing.T) {
 	}{
 		{
 			desc: "Nil client",
-			setupMockClient: func(t *testing.T) client {
+			setupMockClient: func(*testing.T) client {
 				return nil
 			},
 			expectedMetricFile: filepath.Join("testdata", "expected_metrics", "no_metrics.yaml"),
@@ -159,7 +161,7 @@ func TestScraperScrape(t *testing.T) {
 		},
 		{
 			desc: "API Call Failure on Jobmanagers",
-			setupMockClient: func(t *testing.T) client {
+			setupMockClient: func(*testing.T) client {
 				mockClient := mocks.MockClient{}
 				mockClient.On("GetJobmanagerMetrics", mock.Anything).Return(&models.JobmanagerMetrics{}, errors.New("some api error"))
 				mockClient.On("GetTaskmanagersMetrics", mock.Anything).Return(nil, nil)
@@ -172,7 +174,7 @@ func TestScraperScrape(t *testing.T) {
 		},
 		{
 			desc: "API Call Failure on Taskmanagers",
-			setupMockClient: func(t *testing.T) client {
+			setupMockClient: func(*testing.T) client {
 				mockClient := mocks.MockClient{}
 				mockClient.On("GetJobmanagerMetrics", mock.Anything).Return(&jobmanagerMetrics, nil)
 				mockClient.On("GetTaskmanagersMetrics", mock.Anything).Return(nil, errors.New("some api error"))
@@ -185,7 +187,7 @@ func TestScraperScrape(t *testing.T) {
 		},
 		{
 			desc: "API Call Failure on Jobs",
-			setupMockClient: func(t *testing.T) client {
+			setupMockClient: func(*testing.T) client {
 				mockClient := mocks.MockClient{}
 				mockClient.On("GetJobmanagerMetrics", mock.Anything).Return(&jobmanagerMetrics, nil)
 				mockClient.On("GetTaskmanagersMetrics", mock.Anything).Return(taskmanagerMetricsInstances, nil)
@@ -198,7 +200,7 @@ func TestScraperScrape(t *testing.T) {
 		},
 		{
 			desc: "API Call Failure on Subtasks",
-			setupMockClient: func(t *testing.T) client {
+			setupMockClient: func(*testing.T) client {
 				mockClient := mocks.MockClient{}
 				mockClient.On("GetJobmanagerMetrics", mock.Anything).Return(&jobmanagerMetrics, nil)
 				mockClient.On("GetTaskmanagersMetrics", mock.Anything).Return(taskmanagerMetricsInstances, nil)
@@ -227,7 +229,7 @@ func TestScraperScrape(t *testing.T) {
 		},
 		{
 			desc: "Successful Collection",
-			setupMockClient: func(t *testing.T) client {
+			setupMockClient: func(*testing.T) client {
 				mockClient := mocks.MockClient{}
 
 				// mock client calls
@@ -245,7 +247,7 @@ func TestScraperScrape(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			scraper := newflinkScraper(createDefaultConfig().(*Config), receivertest.NewNopCreateSettings())
+			scraper := newflinkScraper(createDefaultConfig().(*Config), receivertest.NewNopSettings())
 			scraper.client = tc.setupMockClient(t)
 			actualMetrics, err := scraper.scrape(context.Background())
 

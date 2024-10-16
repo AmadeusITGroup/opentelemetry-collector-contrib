@@ -59,13 +59,15 @@ func TestIntegration(t *testing.T) {
 			factory := NewFactory()
 			factories.Receivers[metadata.Type] = factory
 			configFile := filepath.Join("testdata", "integration", testCase.configFilename)
+			// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/33594
+			// nolint:staticcheck
 			cfg, err := otelcoltest.LoadConfigAndValidate(configFile, factories)
 			require.NoError(t, err)
 			snmpConfig := cfg.Receivers[component.NewID(metadata.Type)].(*Config)
 
 			consumer := new(consumertest.MetricsSink)
-			settings := receivertest.NewNopCreateSettings()
-			rcvr, err := factory.CreateMetricsReceiver(context.Background(), settings, snmpConfig, consumer)
+			settings := receivertest.NewNopSettings()
+			rcvr, err := factory.CreateMetrics(context.Background(), settings, snmpConfig, consumer)
 			require.NoError(t, err, "failed creating metrics receiver")
 			require.NoError(t, rcvr.Start(context.Background(), componenttest.NewNopHost()))
 			require.Eventuallyf(t, func() bool {

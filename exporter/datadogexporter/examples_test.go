@@ -25,6 +25,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver"
@@ -54,6 +55,8 @@ func TestExamples(t *testing.T) {
 		t.Run(filepath.Base(f.Name()), func(t *testing.T) {
 			t.Setenv("DD_API_KEY", "testvalue")
 			name := filepath.Join(folder, f.Name())
+			// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/33594
+			// nolint:staticcheck
 			_, err := otelcoltest.LoadConfigAndValidate(name, factories)
 			require.NoError(t, err, "All yaml config must validate. Please ensure that all necessary component factories are added in newTestComponents()")
 		})
@@ -71,7 +74,7 @@ func TestExamples(t *testing.T) {
 		require.NoError(t, err)
 		err = yaml.Unmarshal(slurp, &out)
 		require.NoError(t, err)
-		require.Equal(t, out.Kind, "ConfigMap")
+		require.Equal(t, "ConfigMap", out.Kind)
 		require.NotEmpty(t, out.Data.YAML)
 
 		data := []byte(out.Data.YAML)
@@ -79,10 +82,11 @@ func TestExamples(t *testing.T) {
 		require.NoError(t, err)
 		n, err := f.Write(data)
 		require.NoError(t, err)
-		require.Equal(t, n, len(data))
+		require.Len(t, data, n)
 		require.NoError(t, f.Close())
 		defer os.RemoveAll(f.Name())
-
+		// https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/33594
+		// nolint:staticcheck
 		_, err = otelcoltest.LoadConfigAndValidate(f.Name(), factories)
 		require.NoError(t, err, "All yaml config must validate. Please ensure that all necessary component factories are added in newTestComponents()")
 	})
@@ -112,6 +116,7 @@ func newTestComponents(t *testing.T) otelcol.Factories {
 			k8sattributesprocessor.NewFactory(),
 			resourcedetectionprocessor.NewFactory(),
 			probabilisticsamplerprocessor.NewFactory(),
+			transformprocessor.NewFactory(),
 		}...,
 	)
 	require.NoError(t, err)

@@ -22,12 +22,9 @@ func TestConfigUnmarshalUnknownAttributes(t *testing.T) {
 		"api_key":           "secret",
 		"unknown_attribute": "some value",
 	})
-	err := config.Unmarshal(configMap)
+	err := configMap.Unmarshal(config)
 
-	unmarshalErr := fmt.Errorf("1 error(s) decoding:\n\n* '' has invalid keys: unknown_attribute")
-	expectedError := fmt.Errorf("cannot unmarshal config: %w", unmarshalErr)
-
-	assert.Equal(t, expectedError.Error(), err.Error())
+	assert.ErrorContains(t, err, "has invalid keys: unknown_attribute")
 }
 
 func TestConfigUseDefaults(t *testing.T) {
@@ -97,7 +94,7 @@ func TestConfigValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.config.Validate()
 			if err == nil {
-				assert.Nil(t, tt.expected, tt.name)
+				assert.NoError(t, tt.expected, tt.name)
 			} else {
 				assert.Equal(t, tt.expected.Error(), err.Error(), tt.name)
 			}
@@ -111,8 +108,9 @@ func TestConfigString(t *testing.T) {
 		APIKey:     "secret",
 		Debug:      true,
 		BufferSettings: BufferSettings{
-			MaxLifetime: 123,
-			GroupBy:     []string{"field1", "field2"},
+			MaxLifetime:    123,
+			PurgeOlderThan: 567,
+			GroupBy:        []string{"field1", "field2"},
 		},
 		TracesSettings: TracesSettings{
 			exportSettings: exportSettings{
@@ -137,12 +135,12 @@ func TestConfigString(t *testing.T) {
 			UseHostName: false,
 		},
 		BackOffConfig:   configretry.NewDefaultBackOffConfig(),
-		QueueSettings:   exporterhelper.NewDefaultQueueSettings(),
-		TimeoutSettings: exporterhelper.NewDefaultTimeoutSettings(),
+		QueueSettings:   exporterhelper.NewDefaultQueueConfig(),
+		TimeoutSettings: exporterhelper.NewDefaultTimeoutConfig(),
 	}
 
 	assert.Equal(t,
-		"DatasetURL: https://example.com; APIKey: [REDACTED] (6); Debug: true; BufferSettings: {MaxLifetime:123ns GroupBy:[field1 field2] RetryInitialInterval:0s RetryMaxInterval:0s RetryMaxElapsedTime:0s RetryShutdownTimeout:0s}; LogsSettings: {ExportResourceInfo:true ExportResourcePrefix:AAA ExportScopeInfo:true ExportScopePrefix:BBB DecomposeComplexMessageField:true DecomposedComplexMessagePrefix:EEE exportSettings:{ExportSeparator:CCC ExportDistinguishingSuffix:DDD}}; TracesSettings: {exportSettings:{ExportSeparator:TTT ExportDistinguishingSuffix:UUU}}; ServerHostSettings: {UseHostName:false ServerHost:foo-bar}; BackOffConfig: {Enabled:true InitialInterval:5s RandomizationFactor:0.5 Multiplier:1.5 MaxInterval:30s MaxElapsedTime:5m0s}; QueueSettings: {Enabled:true NumConsumers:10 QueueSize:1000 StorageID:<nil>}; TimeoutSettings: {Timeout:5s}",
+		"DatasetURL: https://example.com; APIKey: [REDACTED] (6); Debug: true; BufferSettings: {MaxLifetime:123ns PurgeOlderThan:567ns GroupBy:[field1 field2] RetryInitialInterval:0s RetryMaxInterval:0s RetryMaxElapsedTime:0s RetryShutdownTimeout:0s MaxParallelOutgoing:0}; LogsSettings: {ExportResourceInfo:true ExportResourcePrefix:AAA ExportScopeInfo:true ExportScopePrefix:BBB DecomposeComplexMessageField:true DecomposedComplexMessagePrefix:EEE exportSettings:{ExportSeparator:CCC ExportDistinguishingSuffix:DDD}}; TracesSettings: {exportSettings:{ExportSeparator:TTT ExportDistinguishingSuffix:UUU}}; ServerHostSettings: {UseHostName:false ServerHost:foo-bar}; BackOffConfig: {Enabled:true InitialInterval:5s RandomizationFactor:0.5 Multiplier:1.5 MaxInterval:30s MaxElapsedTime:5m0s}; QueueSettings: {Enabled:true NumConsumers:10 QueueSize:1000 StorageID:<nil>}; TimeoutSettings: {Timeout:5s}",
 		config.String(),
 	)
 }
@@ -159,7 +157,7 @@ func TestConfigUseProvidedExportResourceInfoValue(t *testing.T) {
 	})
 	err := config.Unmarshal(configMap)
 	assert.NoError(t, err)
-	assert.Equal(t, true, config.LogsSettings.ExportResourceInfo)
+	assert.True(t, config.LogsSettings.ExportResourceInfo)
 }
 
 func TestConfigUseProvidedExportScopeInfoValue(t *testing.T) {
@@ -174,5 +172,5 @@ func TestConfigUseProvidedExportScopeInfoValue(t *testing.T) {
 	})
 	err := config.Unmarshal(configMap)
 	assert.NoError(t, err)
-	assert.Equal(t, false, config.LogsSettings.ExportScopeInfo)
+	assert.False(t, config.LogsSettings.ExportScopeInfo)
 }

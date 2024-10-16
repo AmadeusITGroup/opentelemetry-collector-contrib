@@ -20,7 +20,7 @@ func TestTrackerAddSpans(t *testing.T) {
 	tracker := NewTracker(
 		DefaultConfig(),
 		"abcd",
-		exportertest.NewNopCreateSettings(),
+		exportertest.NewNopSettings(),
 	)
 
 	err := tracker.Start(context.Background(), componenttest.NewNopHost())
@@ -56,8 +56,8 @@ func TestTrackerStart(t *testing.T) {
 			config: &Config{
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: "localhost:9090",
-					TLSSetting: configtls.TLSClientSetting{
-						TLSSetting: configtls.TLSSetting{
+					TLSSetting: configtls.ClientConfig{
+						Config: configtls.Config{
 							CAFile: "/non/existent",
 						},
 					},
@@ -73,7 +73,7 @@ func TestTrackerStart(t *testing.T) {
 			tracker := NewTracker(
 				tt.config,
 				"abcd",
-				exportertest.NewNopCreateSettings(),
+				exportertest.NewNopSettings(),
 			)
 
 			err := tracker.Start(context.Background(), componenttest.NewNopHost())
@@ -81,11 +81,13 @@ func TestTrackerStart(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errMsg != "" {
-					require.Contains(t, err.Error(), tt.errMsg)
+					require.ErrorContains(t, err, tt.errMsg)
 				}
 			} else {
 				require.NoError(t, err)
 			}
+
+			assert.NoError(t, tracker.Shutdown(context.Background()))
 		})
 	}
 }

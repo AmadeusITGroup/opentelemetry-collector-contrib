@@ -4,7 +4,7 @@ status:
   class: receiver
   stability:
     beta: [metrics]
-  distributions: [contrib, observiq, sumo]
+  distributions: [contrib]
   codeowners:
     active: [djaglowski]
 
@@ -55,6 +55,3 @@ metrics:
       monotonic: false
       aggregation_temporality: cumulative
     attributes: [state]
-
-tests:
-  config:

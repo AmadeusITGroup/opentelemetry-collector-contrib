@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/filter"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/receiver"
@@ -494,6 +495,55 @@ func (m *metricContainerCPULimit) emit(metrics pmetric.MetricSlice) {
 
 func newMetricContainerCPULimit(cfg MetricConfig) metricContainerCPULimit {
 	m := metricContainerCPULimit{config: cfg}
+	if cfg.Enabled {
+		m.data = pmetric.NewMetric()
+		m.init()
+	}
+	return m
+}
+
+type metricContainerCPULogicalCount struct {
+	data     pmetric.Metric // data buffer for generated metric.
+	config   MetricConfig   // metric config provided by user.
+	capacity int            // max observed number of data points added to the metric.
+}
+
+// init fills container.cpu.logical.count metric with initial data.
+func (m *metricContainerCPULogicalCount) init() {
+	m.data.SetName("container.cpu.logical.count")
+	m.data.SetDescription("Number of cores available to the container.")
+	m.data.SetUnit("{cpus}")
+	m.data.SetEmptyGauge()
+}
+
+func (m *metricContainerCPULogicalCount) recordDataPoint(start pcommon.Timestamp, ts pcommon.Timestamp, val int64) {
+	if !m.config.Enabled {
+		return
+	}
+	dp := m.data.Gauge().DataPoints().AppendEmpty()
+	dp.SetStartTimestamp(start)
+	dp.SetTimestamp(ts)
+	dp.SetIntValue(val)
+}
+
+// updateCapacity saves max length of data point slices that will be used for the slice capacity.
+func (m *metricContainerCPULogicalCount) updateCapacity() {
+	if m.data.Gauge().DataPoints().Len() > m.capacity {
+		m.capacity = m.data.Gauge().DataPoints().Len()
+	}
+}
+
+// emit appends recorded metric data to a metrics slice and prepares it for recording another set of data points.
+func (m *metricContainerCPULogicalCount) emit(metrics pmetric.MetricSlice) {
+	if m.config.Enabled && m.data.Gauge().DataPoints().Len() > 0 {
+		m.updateCapacity()
+		m.data.MoveTo(metrics.AppendEmpty())
+		m.init()
+	}
+}
+
+func newMetricContainerCPULogicalCount(cfg MetricConfig) metricContainerCPULogicalCount {
+	m := metricContainerCPULogicalCount{config: cfg}
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -1257,6 +1307,57 @@ func (m *metricContainerMemoryDirty) emit(metrics pmetric.MetricSlice) {
 
 func newMetricContainerMemoryDirty(cfg MetricConfig) metricContainerMemoryDirty {
 	m := metricContainerMemoryDirty{config: cfg}
+	if cfg.Enabled {
+		m.data = pmetric.NewMetric()
+		m.init()
+	}
+	return m
+}
+
+type metricContainerMemoryFails struct {
+	data     pmetric.Metric // data buffer for generated metric.
+	config   MetricConfig   // metric config provided by user.
+	capacity int            // max observed number of data points added to the metric.
+}
+
+// init fills container.memory.fails metric with initial data.
+func (m *metricContainerMemoryFails) init() {
+	m.data.SetName("container.memory.fails")
+	m.data.SetDescription("Number of times the memory limit was hit.")
+	m.data.SetUnit("{fails}")
+	m.data.SetEmptySum()
+	m.data.Sum().SetIsMonotonic(true)
+	m.data.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+}
+
+func (m *metricContainerMemoryFails) recordDataPoint(start pcommon.Timestamp, ts pcommon.Timestamp, val int64) {
+	if !m.config.Enabled {
+		return
+	}
+	dp := m.data.Sum().DataPoints().AppendEmpty()
+	dp.SetStartTimestamp(start)
+	dp.SetTimestamp(ts)
+	dp.SetIntValue(val)
+}
+
+// updateCapacity saves max length of data point slices that will be used for the slice capacity.
+func (m *metricContainerMemoryFails) updateCapacity() {
+	if m.data.Sum().DataPoints().Len() > m.capacity {
+		m.capacity = m.data.Sum().DataPoints().Len()
+	}
+}
+
+// emit appends recorded metric data to a metrics slice and prepares it for recording another set of data points.
+func (m *metricContainerMemoryFails) emit(metrics pmetric.MetricSlice) {
+	if m.config.Enabled && m.data.Sum().DataPoints().Len() > 0 {
+		m.updateCapacity()
+		m.data.MoveTo(metrics.AppendEmpty())
+		m.init()
+	}
+}
+
+func newMetricContainerMemoryFails(cfg MetricConfig) metricContainerMemoryFails {
+	m := metricContainerMemoryFails{config: cfg}
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -3579,6 +3680,8 @@ type MetricsBuilder struct {
 	metricsCapacity                                  int                  // maximum observed number of metrics per resource.
 	metricsBuffer                                    pmetric.Metrics      // accumulates metrics data before emitting.
 	buildInfo                                        component.BuildInfo  // contains version information.
+	resourceAttributeIncludeFilter                   map[string]filter.Filter
+	resourceAttributeExcludeFilter                   map[string]filter.Filter
 	metricContainerBlockioIoMergedRecursive          metricContainerBlockioIoMergedRecursive
 	metricContainerBlockioIoQueuedRecursive          metricContainerBlockioIoQueuedRecursive
 	metricContainerBlockioIoServiceBytesRecursive    metricContainerBlockioIoServiceBytesRecursive
@@ -3588,6 +3691,7 @@ type MetricsBuilder struct {
 	metricContainerBlockioIoWaitTimeRecursive        metricContainerBlockioIoWaitTimeRecursive
 	metricContainerBlockioSectorsRecursive           metricContainerBlockioSectorsRecursive
 	metricContainerCPULimit                          metricContainerCPULimit
+	metricContainerCPULogicalCount                   metricContainerCPULogicalCount
 	metricContainerCPUShares                         metricContainerCPUShares
 	metricContainerCPUThrottlingDataPeriods          metricContainerCPUThrottlingDataPeriods
 	metricContainerCPUThrottlingDataThrottledPeriods metricContainerCPUThrottlingDataThrottledPeriods
@@ -3603,6 +3707,7 @@ type MetricsBuilder struct {
 	metricContainerMemoryAnon                        metricContainerMemoryAnon
 	metricContainerMemoryCache                       metricContainerMemoryCache
 	metricContainerMemoryDirty                       metricContainerMemoryDirty
+	metricContainerMemoryFails                       metricContainerMemoryFails
 	metricContainerMemoryFile                        metricContainerMemoryFile
 	metricContainerMemoryHierarchicalMemoryLimit     metricContainerMemoryHierarchicalMemoryLimit
 	metricContainerMemoryHierarchicalMemswLimit      metricContainerMemoryHierarchicalMemswLimit
@@ -3650,17 +3755,25 @@ type MetricsBuilder struct {
 	metricContainerUptime                            metricContainerUptime
 }
 
-// metricBuilderOption applies changes to default metrics builder.
-type metricBuilderOption func(*MetricsBuilder)
-
-// WithStartTime sets startTime on the metrics builder.
-func WithStartTime(startTime pcommon.Timestamp) metricBuilderOption {
-	return func(mb *MetricsBuilder) {
-		mb.startTime = startTime
-	}
+// MetricBuilderOption applies changes to default metrics builder.
+type MetricBuilderOption interface {
+	apply(*MetricsBuilder)
 }
 
-func NewMetricsBuilder(mbc MetricsBuilderConfig, settings receiver.CreateSettings, options ...metricBuilderOption) *MetricsBuilder {
+type metricBuilderOptionFunc func(mb *MetricsBuilder)
+
+func (mbof metricBuilderOptionFunc) apply(mb *MetricsBuilder) {
+	mbof(mb)
+}
+
+// WithStartTime sets startTime on the metrics builder.
+func WithStartTime(startTime pcommon.Timestamp) MetricBuilderOption {
+	return metricBuilderOptionFunc(func(mb *MetricsBuilder) {
+		mb.startTime = startTime
+	})
+}
+
+func NewMetricsBuilder(mbc MetricsBuilderConfig, settings receiver.Settings, options ...MetricBuilderOption) *MetricsBuilder {
 	mb := &MetricsBuilder{
 		config:                                  mbc,
 		startTime:                               pcommon.NewTimestampFromTime(time.Now()),
@@ -3675,6 +3788,7 @@ func NewMetricsBuilder(mbc MetricsBuilderConfig, settings receiver.CreateSetting
 		metricContainerBlockioIoWaitTimeRecursive:        newMetricContainerBlockioIoWaitTimeRecursive(mbc.Metrics.ContainerBlockioIoWaitTimeRecursive),
 		metricContainerBlockioSectorsRecursive:           newMetricContainerBlockioSectorsRecursive(mbc.Metrics.ContainerBlockioSectorsRecursive),
 		metricContainerCPULimit:                          newMetricContainerCPULimit(mbc.Metrics.ContainerCPULimit),
+		metricContainerCPULogicalCount:                   newMetricContainerCPULogicalCount(mbc.Metrics.ContainerCPULogicalCount),
 		metricContainerCPUShares:                         newMetricContainerCPUShares(mbc.Metrics.ContainerCPUShares),
 		metricContainerCPUThrottlingDataPeriods:          newMetricContainerCPUThrottlingDataPeriods(mbc.Metrics.ContainerCPUThrottlingDataPeriods),
 		metricContainerCPUThrottlingDataThrottledPeriods: newMetricContainerCPUThrottlingDataThrottledPeriods(mbc.Metrics.ContainerCPUThrottlingDataThrottledPeriods),
@@ -3690,6 +3804,7 @@ func NewMetricsBuilder(mbc MetricsBuilderConfig, settings receiver.CreateSetting
 		metricContainerMemoryAnon:                        newMetricContainerMemoryAnon(mbc.Metrics.ContainerMemoryAnon),
 		metricContainerMemoryCache:                       newMetricContainerMemoryCache(mbc.Metrics.ContainerMemoryCache),
 		metricContainerMemoryDirty:                       newMetricContainerMemoryDirty(mbc.Metrics.ContainerMemoryDirty),
+		metricContainerMemoryFails:                       newMetricContainerMemoryFails(mbc.Metrics.ContainerMemoryFails),
 		metricContainerMemoryFile:                        newMetricContainerMemoryFile(mbc.Metrics.ContainerMemoryFile),
 		metricContainerMemoryHierarchicalMemoryLimit:     newMetricContainerMemoryHierarchicalMemoryLimit(mbc.Metrics.ContainerMemoryHierarchicalMemoryLimit),
 		metricContainerMemoryHierarchicalMemswLimit:      newMetricContainerMemoryHierarchicalMemswLimit(mbc.Metrics.ContainerMemoryHierarchicalMemswLimit),
@@ -3735,9 +3850,54 @@ func NewMetricsBuilder(mbc MetricsBuilderConfig, settings receiver.CreateSetting
 		metricContainerPidsLimit:                         newMetricContainerPidsLimit(mbc.Metrics.ContainerPidsLimit),
 		metricContainerRestarts:                          newMetricContainerRestarts(mbc.Metrics.ContainerRestarts),
 		metricContainerUptime:                            newMetricContainerUptime(mbc.Metrics.ContainerUptime),
+		resourceAttributeIncludeFilter:                   make(map[string]filter.Filter),
+		resourceAttributeExcludeFilter:                   make(map[string]filter.Filter),
 	}
+	if mbc.ResourceAttributes.ContainerCommandLine.MetricsInclude != nil {
+		mb.resourceAttributeIncludeFilter["container.command_line"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerCommandLine.MetricsInclude)
+	}
+	if mbc.ResourceAttributes.ContainerCommandLine.MetricsExclude != nil {
+		mb.resourceAttributeExcludeFilter["container.command_line"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerCommandLine.MetricsExclude)
+	}
+	if mbc.ResourceAttributes.ContainerHostname.MetricsInclude != nil {
+		mb.resourceAttributeIncludeFilter["container.hostname"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerHostname.MetricsInclude)
+	}
+	if mbc.ResourceAttributes.ContainerHostname.MetricsExclude != nil {
+		mb.resourceAttributeExcludeFilter["container.hostname"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerHostname.MetricsExclude)
+	}
+	if mbc.ResourceAttributes.ContainerID.MetricsInclude != nil {
+		mb.resourceAttributeIncludeFilter["container.id"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerID.MetricsInclude)
+	}
+	if mbc.ResourceAttributes.ContainerID.MetricsExclude != nil {
+		mb.resourceAttributeExcludeFilter["container.id"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerID.MetricsExclude)
+	}
+	if mbc.ResourceAttributes.ContainerImageID.MetricsInclude != nil {
+		mb.resourceAttributeIncludeFilter["container.image.id"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerImageID.MetricsInclude)
+	}
+	if mbc.ResourceAttributes.ContainerImageID.MetricsExclude != nil {
+		mb.resourceAttributeExcludeFilter["container.image.id"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerImageID.MetricsExclude)
+	}
+	if mbc.ResourceAttributes.ContainerImageName.MetricsInclude != nil {
+		mb.resourceAttributeIncludeFilter["container.image.name"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerImageName.MetricsInclude)
+	}
+	if mbc.ResourceAttributes.ContainerImageName.MetricsExclude != nil {
+		mb.resourceAttributeExcludeFilter["container.image.name"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerImageName.MetricsExclude)
+	}
+	if mbc.ResourceAttributes.ContainerName.MetricsInclude != nil {
+		mb.resourceAttributeIncludeFilter["container.name"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerName.MetricsInclude)
+	}
+	if mbc.ResourceAttributes.ContainerName.MetricsExclude != nil {
+		mb.resourceAttributeExcludeFilter["container.name"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerName.MetricsExclude)
+	}
+	if mbc.ResourceAttributes.ContainerRuntime.MetricsInclude != nil {
+		mb.resourceAttributeIncludeFilter["container.runtime"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerRuntime.MetricsInclude)
+	}
+	if mbc.ResourceAttributes.ContainerRuntime.MetricsExclude != nil {
+		mb.resourceAttributeExcludeFilter["container.runtime"] = filter.CreateFilter(mbc.ResourceAttributes.ContainerRuntime.MetricsExclude)
+	}
+
 	for _, op := range options {
-		op(mb)
+		op.apply(mb)
 	}
 	return mb
 }
@@ -3755,20 +3915,28 @@ func (mb *MetricsBuilder) updateCapacity(rm pmetric.ResourceMetrics) {
 }
 
 // ResourceMetricsOption applies changes to provided resource metrics.
-type ResourceMetricsOption func(pmetric.ResourceMetrics)
+type ResourceMetricsOption interface {
+	apply(pmetric.ResourceMetrics)
+}
+
+type resourceMetricsOptionFunc func(pmetric.ResourceMetrics)
+
+func (rmof resourceMetricsOptionFunc) apply(rm pmetric.ResourceMetrics) {
+	rmof(rm)
+}
 
 // WithResource sets the provided resource on the emitted ResourceMetrics.
 // It's recommended to use ResourceBuilder to create the resource.
 func WithResource(res pcommon.Resource) ResourceMetricsOption {
-	return func(rm pmetric.ResourceMetrics) {
+	return resourceMetricsOptionFunc(func(rm pmetric.ResourceMetrics) {
 		res.CopyTo(rm.Resource())
-	}
+	})
 }
 
 // WithStartTimeOverride overrides start time for all the resource metrics data points.
 // This option should be only used if different start time has to be set on metrics coming from different resources.
 func WithStartTimeOverride(start pcommon.Timestamp) ResourceMetricsOption {
-	return func(rm pmetric.ResourceMetrics) {
+	return resourceMetricsOptionFunc(func(rm pmetric.ResourceMetrics) {
 		var dps pmetric.NumberDataPointSlice
 		metrics := rm.ScopeMetrics().At(0).Metrics()
 		for i := 0; i < metrics.Len(); i++ {
@@ -3782,7 +3950,7 @@ func WithStartTimeOverride(start pcommon.Timestamp) ResourceMetricsOption {
 				dps.At(j).SetStartTimestamp(start)
 			}
 		}
-	}
+	})
 }
 
 // EmitForResource saves all the generated metrics under a new resource and updates the internal state to be ready for
@@ -3790,11 +3958,11 @@ func WithStartTimeOverride(start pcommon.Timestamp) ResourceMetricsOption {
 // needs to emit metrics from several resources. Otherwise calling this function is not required,
 // just `Emit` function can be called instead.
 // Resource attributes should be provided as ResourceMetricsOption arguments.
-func (mb *MetricsBuilder) EmitForResource(rmo ...ResourceMetricsOption) {
+func (mb *MetricsBuilder) EmitForResource(options ...ResourceMetricsOption) {
 	rm := pmetric.NewResourceMetrics()
 	rm.SetSchemaUrl(conventions.SchemaURL)
 	ils := rm.ScopeMetrics().AppendEmpty()
-	ils.Scope().SetName("otelcol/dockerstatsreceiver")
+	ils.Scope().SetName("github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver")
 	ils.Scope().SetVersion(mb.buildInfo.Version)
 	ils.Metrics().EnsureCapacity(mb.metricsCapacity)
 	mb.metricContainerBlockioIoMergedRecursive.emit(ils.Metrics())
@@ -3806,6 +3974,7 @@ func (mb *MetricsBuilder) EmitForResource(rmo ...ResourceMetricsOption) {
 	mb.metricContainerBlockioIoWaitTimeRecursive.emit(ils.Metrics())
 	mb.metricContainerBlockioSectorsRecursive.emit(ils.Metrics())
 	mb.metricContainerCPULimit.emit(ils.Metrics())
+	mb.metricContainerCPULogicalCount.emit(ils.Metrics())
 	mb.metricContainerCPUShares.emit(ils.Metrics())
 	mb.metricContainerCPUThrottlingDataPeriods.emit(ils.Metrics())
 	mb.metricContainerCPUThrottlingDataThrottledPeriods.emit(ils.Metrics())
@@ -3821,6 +3990,7 @@ func (mb *MetricsBuilder) EmitForResource(rmo ...ResourceMetricsOption) {
 	mb.metricContainerMemoryAnon.emit(ils.Metrics())
 	mb.metricContainerMemoryCache.emit(ils.Metrics())
 	mb.metricContainerMemoryDirty.emit(ils.Metrics())
+	mb.metricContainerMemoryFails.emit(ils.Metrics())
 	mb.metricContainerMemoryFile.emit(ils.Metrics())
 	mb.metricContainerMemoryHierarchicalMemoryLimit.emit(ils.Metrics())
 	mb.metricContainerMemoryHierarchicalMemswLimit.emit(ils.Metrics())
@@ -3867,9 +4037,20 @@ func (mb *MetricsBuilder) EmitForResource(rmo ...ResourceMetricsOption) {
 	mb.metricContainerRestarts.emit(ils.Metrics())
 	mb.metricContainerUptime.emit(ils.Metrics())
 
-	for _, op := range rmo {
-		op(rm)
+	for _, op := range options {
+		op.apply(rm)
 	}
+	for attr, filter := range mb.resourceAttributeIncludeFilter {
+		if val, ok := rm.Resource().Attributes().Get(attr); ok && !filter.Matches(val.AsString()) {
+			return
+		}
+	}
+	for attr, filter := range mb.resourceAttributeExcludeFilter {
+		if val, ok := rm.Resource().Attributes().Get(attr); ok && filter.Matches(val.AsString()) {
+			return
+		}
+	}
+
 	if ils.Metrics().Len() > 0 {
 		mb.updateCapacity(rm)
 		rm.MoveTo(mb.metricsBuffer.ResourceMetrics().AppendEmpty())
@@ -3879,8 +4060,8 @@ func (mb *MetricsBuilder) EmitForResource(rmo ...ResourceMetricsOption) {
 // Emit returns all the metrics accumulated by the metrics builder and updates the internal state to be ready for
 // recording another set of metrics. This function will be responsible for applying all the transformations required to
 // produce metric representation defined in metadata and user config, e.g. delta or cumulative.
-func (mb *MetricsBuilder) Emit(rmo ...ResourceMetricsOption) pmetric.Metrics {
-	mb.EmitForResource(rmo...)
+func (mb *MetricsBuilder) Emit(options ...ResourceMetricsOption) pmetric.Metrics {
+	mb.EmitForResource(options...)
 	metrics := mb.metricsBuffer
 	mb.metricsBuffer = pmetric.NewMetrics()
 	return metrics
@@ -3929,6 +4110,11 @@ func (mb *MetricsBuilder) RecordContainerBlockioSectorsRecursiveDataPoint(ts pco
 // RecordContainerCPULimitDataPoint adds a data point to container.cpu.limit metric.
 func (mb *MetricsBuilder) RecordContainerCPULimitDataPoint(ts pcommon.Timestamp, val float64) {
 	mb.metricContainerCPULimit.recordDataPoint(mb.startTime, ts, val)
+}
+
+// RecordContainerCPULogicalCountDataPoint adds a data point to container.cpu.logical.count metric.
+func (mb *MetricsBuilder) RecordContainerCPULogicalCountDataPoint(ts pcommon.Timestamp, val int64) {
+	mb.metricContainerCPULogicalCount.recordDataPoint(mb.startTime, ts, val)
 }
 
 // RecordContainerCPUSharesDataPoint adds a data point to container.cpu.shares metric.
@@ -4004,6 +4190,11 @@ func (mb *MetricsBuilder) RecordContainerMemoryCacheDataPoint(ts pcommon.Timesta
 // RecordContainerMemoryDirtyDataPoint adds a data point to container.memory.dirty metric.
 func (mb *MetricsBuilder) RecordContainerMemoryDirtyDataPoint(ts pcommon.Timestamp, val int64) {
 	mb.metricContainerMemoryDirty.recordDataPoint(mb.startTime, ts, val)
+}
+
+// RecordContainerMemoryFailsDataPoint adds a data point to container.memory.fails metric.
+func (mb *MetricsBuilder) RecordContainerMemoryFailsDataPoint(ts pcommon.Timestamp, val int64) {
+	mb.metricContainerMemoryFails.recordDataPoint(mb.startTime, ts, val)
 }
 
 // RecordContainerMemoryFileDataPoint adds a data point to container.memory.file metric.
@@ -4233,9 +4424,9 @@ func (mb *MetricsBuilder) RecordContainerUptimeDataPoint(ts pcommon.Timestamp, v
 
 // Reset resets metrics builder to its initial state. It should be used when external metrics source is restarted,
 // and metrics builder should update its startTime and reset it's internal state accordingly.
-func (mb *MetricsBuilder) Reset(options ...metricBuilderOption) {
+func (mb *MetricsBuilder) Reset(options ...MetricBuilderOption) {
 	mb.startTime = pcommon.NewTimestampFromTime(time.Now())
 	for _, op := range options {
-		op(mb)
+		op.apply(mb)
 	}
 }

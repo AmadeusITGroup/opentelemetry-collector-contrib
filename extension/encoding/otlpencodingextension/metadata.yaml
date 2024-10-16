@@ -3,7 +3,7 @@ type: otlp_encoding
 status:
   class: extension
   stability:
-    development: [ extension ]
+    alpha: [ extension ]
   distributions: [ ]
   codeowners:
     active: [ dao-jun, VihasMakwana ]

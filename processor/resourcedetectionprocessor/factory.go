@@ -103,7 +103,7 @@ func defaultClientConfig() confighttp.ClientConfig {
 
 func (f *factory) createTracesProcessor(
 	ctx context.Context,
-	set processor.CreateSettings,
+	set processor.Settings,
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
@@ -112,7 +112,7 @@ func (f *factory) createTracesProcessor(
 		return nil, err
 	}
 
-	return processorhelper.NewTracesProcessor(
+	return processorhelper.NewTraces(
 		ctx,
 		set,
 		cfg,
@@ -124,7 +124,7 @@ func (f *factory) createTracesProcessor(
 
 func (f *factory) createMetricsProcessor(
 	ctx context.Context,
-	set processor.CreateSettings,
+	set processor.Settings,
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
@@ -133,7 +133,7 @@ func (f *factory) createMetricsProcessor(
 		return nil, err
 	}
 
-	return processorhelper.NewMetricsProcessor(
+	return processorhelper.NewMetrics(
 		ctx,
 		set,
 		cfg,
@@ -145,7 +145,7 @@ func (f *factory) createMetricsProcessor(
 
 func (f *factory) createLogsProcessor(
 	ctx context.Context,
-	set processor.CreateSettings,
+	set processor.Settings,
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
@@ -154,7 +154,7 @@ func (f *factory) createLogsProcessor(
 		return nil, err
 	}
 
-	return processorhelper.NewLogsProcessor(
+	return processorhelper.NewLogs(
 		ctx,
 		set,
 		cfg,
@@ -165,7 +165,7 @@ func (f *factory) createLogsProcessor(
 }
 
 func (f *factory) getResourceDetectionProcessor(
-	params processor.CreateSettings,
+	params processor.Settings,
 	cfg component.Config,
 ) (*resourceDetectionProcessor, error) {
 	oCfg := cfg.(*Config)
@@ -186,7 +186,7 @@ func (f *factory) getResourceDetectionProcessor(
 }
 
 func (f *factory) getResourceProvider(
-	params processor.CreateSettings,
+	params processor.Settings,
 	timeout time.Duration,
 	configuredDetectors []string,
 	detectorConfigs DetectorConfig,

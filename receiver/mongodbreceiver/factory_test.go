@@ -28,13 +28,13 @@ func TestValidConfig(t *testing.T) {
 	require.NoError(t, component.ValidateConfig(factory.CreateDefaultConfig()))
 }
 
-func TestCreateMetricsReceiver(t *testing.T) {
+func TestCreateMetrics(t *testing.T) {
 	factory := NewFactory()
-	_, err := factory.CreateMetricsReceiver(
+	_, err := factory.CreateMetrics(
 		context.Background(),
-		receivertest.NewNopCreateSettings(),
+		receivertest.NewNopSettings(),
 		&Config{
-			ScraperControllerSettings: scraperhelper.ScraperControllerSettings{
+			ControllerConfig: scraperhelper.ControllerConfig{
 				CollectionInterval: 10 * time.Second,
 				InitialDelay:       time.Second,
 			},

@@ -48,7 +48,7 @@ func TestPayloadToLogRecord(t *testing.T) {
 				logs := plog.NewLogs()
 				rl := logs.ResourceLogs().AppendEmpty()
 				sl := rl.ScopeLogs().AppendEmpty()
-				sl.Scope().SetName(receiverScopeName)
+				sl.Scope().SetName("github.com/open-telemetry/opentelemetry-collector-contrib/receiver/cloudflarereceiver")
 
 				for idx, line := range strings.Split(payload, "\n") {
 					lr := sl.LogRecords().AppendEmpty()
@@ -86,7 +86,7 @@ func TestPayloadToLogRecord(t *testing.T) {
 				}))
 
 				sl := rl.ScopeLogs().AppendEmpty()
-				sl.Scope().SetName(receiverScopeName)
+				sl.Scope().SetName("github.com/open-telemetry/opentelemetry-collector-contrib/receiver/cloudflarereceiver")
 				lr := sl.LogRecords().AppendEmpty()
 
 				require.NoError(t, lr.Attributes().FromRaw(map[string]any{
@@ -115,7 +115,7 @@ func TestPayloadToLogRecord(t *testing.T) {
 			recv := newReceiver(t, &Config{
 				Logs: LogsConfig{
 					Endpoint:       "localhost:0",
-					TLS:            &configtls.TLSServerSetting{},
+					TLS:            &configtls.ServerConfig{},
 					TimestampField: "EdgeStartTimestamp",
 					Attributes: map[string]string{
 						"ClientIP": "http_request.client_ip",
@@ -132,7 +132,7 @@ func TestPayloadToLogRecord(t *testing.T) {
 			if tc.expectedErr != "" {
 				require.Error(t, err)
 				require.Nil(t, logs)
-				require.Contains(t, err.Error(), tc.expectedErr)
+				require.ErrorContains(t, err, tc.expectedErr)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, logs)
@@ -310,7 +310,7 @@ func TestHandleRequest(t *testing.T) {
 					Attributes: map[string]string{
 						"ClientIP": "http_request.client_ip",
 					},
-					TLS: &configtls.TLSServerSetting{},
+					TLS: &configtls.ServerConfig{},
 				},
 			},
 				consumer,
@@ -344,7 +344,7 @@ func gzippedMessage(message string) string {
 }
 
 func newReceiver(t *testing.T, cfg *Config, nextConsumer consumer.Logs) *logsReceiver {
-	set := receivertest.NewNopCreateSettings()
+	set := receivertest.NewNopSettings()
 	set.Logger = zaptest.NewLogger(t)
 	r, err := newLogsReceiver(set, cfg, nextConsumer)
 	require.NoError(t, err)
