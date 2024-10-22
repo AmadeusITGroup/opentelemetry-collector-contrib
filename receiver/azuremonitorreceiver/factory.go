@@ -45,6 +45,7 @@ func createDefaultConfig() component.Config {
 		Services:                          monitorServices,
 		Authentication:                    servicePrincipal,
 		Cloud:                             defaultCloud,
+		MaximumNumberOfDimensionsInACall:  10,
 	}
 }
 
@@ -54,8 +55,16 @@ func createMetricsReceiver(_ context.Context, params receiver.Settings, rConf co
 		return nil, errConfigNotAzureMonitor
 	}
 
-	azureScraper := newScraper(cfg, params)
-	scraper, err := scraperhelper.NewScraper(metadata.Type, azureScraper.scrape, scraperhelper.WithStart(azureScraper.start))
+	var scraper scraperhelper.Scraper
+	var err error
+	if cfg.UseBatchApi {
+		azureBatchScraper := newBatchScraper(cfg, params)
+		scraper, err = scraperhelper.NewScraper(metadata.Type, azureBatchScraper.scrape, scraperhelper.WithStart(azureBatchScraper.start))
+	} else {
+		azureScraper := newScraper(cfg, params)
+		scraper, err = scraperhelper.NewScraper(metadata.Type, azureScraper.scrape, scraperhelper.WithStart(azureScraper.start))
+	}
+
 	if err != nil {
 		return nil, err
 	}
