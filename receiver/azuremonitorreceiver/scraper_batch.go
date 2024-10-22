@@ -40,7 +40,7 @@ type azureType struct {
 	metricsDefinitionsUpdated time.Time
 }
 
-func newBatchScraper(conf *Config, settings receiver.CreateSettings) *azureBatchScraper {
+func newBatchScraper(conf *Config, settings receiver.Settings) *azureBatchScraper {
 	return &azureBatchScraper{
 		cfg:                             conf,
 		settings:                        settings.TelemetrySettings,
@@ -118,12 +118,12 @@ func (s *azureBatchScraper) getArmsubscriptionClient() ArmsubscriptionClient {
 	return client
 }
 
-func (s *azureBatchScraper) getArmClient(subscriptionId string) ArmClient {
+func (s *azureBatchScraper) getArmClient(subscriptionId string) *armresources.Client {
 	client, _ := armresources.NewClient(subscriptionId, s.cred, s.armClientOptions)
 	return client
 }
 
-func (s *azureBatchScraper) getMetricsDefinitionsClient(subscriptionId string) MetricsDefinitionsClientInterface {
+func (s *azureBatchScraper) getMetricsDefinitionsClient(subscriptionId string) *armmonitor.MetricDefinitionsClient {
 	client, _ := s.armMonitorDefinitionsClientFunc(subscriptionId, s.cred, s.armClientOptions)
 	return client
 }

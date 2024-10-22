@@ -36,7 +36,7 @@ func createDefaultConfig() component.Config {
 	cfg.CollectionInterval = defaultCollectionInterval
 
 	return &Config{
-		ScraperControllerSettings:         cfg,
+		ControllerConfig:                  cfg,
 		MetricsBuilderConfig:              metadata.DefaultMetricsBuilderConfig(),
 		CacheResources:                    24 * 60 * 60,
 		CacheResourcesDefinitions:         24 * 60 * 60,
@@ -69,5 +69,5 @@ func createMetricsReceiver(_ context.Context, params receiver.Settings, rConf co
 		return nil, err
 	}
 
-	return scraperhelper.NewScraperControllerReceiver(&cfg.ScraperControllerSettings, params, consumer, scraperhelper.AddScraper(scraper))
+	return scraperhelper.NewScraperControllerReceiver(&cfg.ControllerConfig, params, consumer, scraperhelper.AddScraper(scraper))
 }

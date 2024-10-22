@@ -47,6 +47,7 @@ func TestNewFactory(t *testing.T) {
 					MaximumNumberOfRecordsPerResource: 10,
 					Authentication:                    servicePrincipal,
 					Cloud:                             defaultCloud,
+					MaximumNumberOfDimensionsInACall:  10,
 				}
 
 				require.Equal(t, expectedCfg, factory.CreateDefaultConfig())
