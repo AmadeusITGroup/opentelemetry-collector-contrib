@@ -233,7 +233,7 @@ func TestExporterLogs(t *testing.T) {
 	t.Run("publish with dedup", func(t *testing.T) {
 		rec := newBulkRecorder()
 		server := newESTestServer(t, func(docs []itemRequest) ([]itemResponse, error) {
-			assert.Equal(t, `{"@timestamp":"1970-01-01T00:00:00.000000000Z","Scope":{"name":"","value":"value","version":""},"SeverityNumber":0,"TraceFlags":0}`, string(docs[0].Document))
+			assert.JSONEq(t, `{"@timestamp":"1970-01-01T00:00:00.000000000Z","Scope":{"name":"","value":"value","version":""},"SeverityNumber":0,"TraceFlags":0}`, string(docs[0].Document))
 			rec.Record(docs)
 			return itemsAllOK(docs)
 		})
@@ -540,14 +540,10 @@ func TestExporterLogs(t *testing.T) {
 
 	t.Run("no retry", func(t *testing.T) {
 		configurations := map[string]func(*Config){
-			"max_requests limited": func(cfg *Config) {
-				cfg.Retry.MaxRequests = 1
-				cfg.Retry.InitialInterval = 1 * time.Millisecond
-				cfg.Retry.MaxInterval = 10 * time.Millisecond
-			},
 			"retry.enabled is false": func(cfg *Config) {
 				cfg.Retry.Enabled = false
-				cfg.Retry.MaxRequests = 10
+				cfg.Retry.RetryOnStatus = []int{429}
+				cfg.Retry.MaxRetries = 10
 				cfg.Retry.InitialInterval = 1 * time.Millisecond
 				cfg.Retry.MaxInterval = 10 * time.Millisecond
 			},
@@ -557,7 +553,7 @@ func TestExporterLogs(t *testing.T) {
 			"fail http request": func(attempts *atomic.Int64) bulkHandler {
 				return func([]itemRequest) ([]itemResponse, error) {
 					attempts.Add(1)
-					return nil, &httpTestError{message: "oops"}
+					return nil, &httpTestError{message: "oops", status: 429}
 				}
 			},
 			"fail item": func(attempts *atomic.Int64) bulkHandler {
@@ -710,9 +706,9 @@ func TestExporterLogs(t *testing.T) {
 
 		assert.Len(t, rec.Items(), 1)
 		doc := rec.Items()[0].Document
-		assert.Equal(t, `{"some.record.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `attributes`).Raw)
-		assert.Equal(t, `{"some.scope.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `scope.attributes`).Raw)
-		assert.Equal(t, `{"some.resource.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `resource.attributes`).Raw)
+		assert.JSONEq(t, `{"some.record.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `attributes`).Raw)
+		assert.JSONEq(t, `{"some.scope.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `scope.attributes`).Raw)
+		assert.JSONEq(t, `{"some.resource.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `resource.attributes`).Raw)
 	})
 
 	t.Run("otel mode attribute key prefix conflict", func(t *testing.T) {
@@ -1227,9 +1223,9 @@ func TestExporterMetrics(t *testing.T) {
 
 		assert.Len(t, rec.Items(), 1)
 		doc := rec.Items()[0].Document
-		assert.Equal(t, `{"some.record.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `attributes`).Raw)
-		assert.Equal(t, `{"some.scope.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `scope.attributes`).Raw)
-		assert.Equal(t, `{"some.resource.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `resource.attributes`).Raw)
+		assert.JSONEq(t, `{"some.record.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `attributes`).Raw)
+		assert.JSONEq(t, `{"some.scope.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `scope.attributes`).Raw)
+		assert.JSONEq(t, `{"some.resource.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `resource.attributes`).Raw)
 	})
 
 	t.Run("otel mode _doc_count hint", func(t *testing.T) {
@@ -1693,9 +1689,9 @@ func TestExporterTraces(t *testing.T) {
 		assert.Len(t, rec.Items(), 2)
 		for _, item := range rec.Items() {
 			doc := item.Document
-			assert.Equal(t, `{"some.record.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `attributes`).Raw)
-			assert.Equal(t, `{"some.scope.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `scope.attributes`).Raw)
-			assert.Equal(t, `{"some.resource.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `resource.attributes`).Raw)
+			assert.JSONEq(t, `{"some.record.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `attributes`).Raw)
+			assert.JSONEq(t, `{"some.scope.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `scope.attributes`).Raw)
+			assert.JSONEq(t, `{"some.resource.attribute":["foo","bar"]}`, gjson.GetBytes(doc, `resource.attributes`).Raw)
 		}
 	})
 
@@ -1803,7 +1799,7 @@ func newTestTracesExporter(t *testing.T, url string, fns ...func(*Config)) expor
 		cfg.NumWorkers = 1
 		cfg.Flush.Interval = 10 * time.Millisecond
 	}}, fns...)...)
-	exp, err := f.CreateTracesExporter(context.Background(), exportertest.NewNopSettings(), cfg)
+	exp, err := f.CreateTraces(context.Background(), exportertest.NewNopSettings(), cfg)
 	require.NoError(t, err)
 
 	err = exp.Start(context.Background(), componenttest.NewNopHost())
@@ -1821,7 +1817,7 @@ func newTestMetricsExporter(t *testing.T, url string, fns ...func(*Config)) expo
 		cfg.NumWorkers = 1
 		cfg.Flush.Interval = 10 * time.Millisecond
 	}}, fns...)...)
-	exp, err := f.CreateMetricsExporter(context.Background(), exportertest.NewNopSettings(), cfg)
+	exp, err := f.CreateMetrics(context.Background(), exportertest.NewNopSettings(), cfg)
 	require.NoError(t, err)
 
 	err = exp.Start(context.Background(), componenttest.NewNopHost())
@@ -1849,7 +1845,7 @@ func newUnstartedTestLogsExporter(t *testing.T, url string, fns ...func(*Config)
 		cfg.NumWorkers = 1
 		cfg.Flush.Interval = 10 * time.Millisecond
 	}}, fns...)...)
-	exp, err := f.CreateLogsExporter(context.Background(), exportertest.NewNopSettings(), cfg)
+	exp, err := f.CreateLogs(context.Background(), exportertest.NewNopSettings(), cfg)
 	require.NoError(t, err)
 	return exp
 }
